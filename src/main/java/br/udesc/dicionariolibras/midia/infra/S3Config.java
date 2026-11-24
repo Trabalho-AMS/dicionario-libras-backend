@@ -30,7 +30,7 @@ public class S3Config {
     @Bean
     public S3Presigner s3Presigner(ArmazenamentoProperties props) {
         return S3Presigner.builder()
-                .endpointOverride(URI.create(props.endpoint()))
+                .endpointOverride(URI.create(props.endpointParaNavegador()))
                 .region(Region.of(props.regiao()))
                 .credentialsProvider(credenciais(props))
                 .serviceConfiguration(S3Configuration.builder().pathStyleAccessEnabled(true).build())

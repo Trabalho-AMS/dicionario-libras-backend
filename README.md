@@ -43,9 +43,15 @@ docker compose up -d        # sobe o PostgreSQL (porta 5433) e o bucket S3 (port
 | Bucket S3 | `http://localhost:8333` | access key `dicionario`, secret `dicionario123` |
 
 As configurações podem ser trocadas por variáveis de ambiente: `DB_URL`, `DB_USER`, `DB_PASSWORD`,
-`S3_ENDPOINT`, `S3_REGION`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_BUCKET` e `CORS_ALLOWED_ORIGINS`.
+`S3_ENDPOINT`, `S3_PUBLIC_ENDPOINT` (endereço do bucket visto pelo navegador, usado nos links dos vídeos), `S3_REGION`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_BUCKET` e `CORS_ALLOWED_ORIGINS`.
 
 Para apagar os dados e começar do zero: `docker compose down -v`.
+
+### Sistema completo com Docker
+
+Para subir backend, frontend, banco e bucket juntos, use o `docker-compose.yml` do
+[repositório principal](https://github.com/Trabalho-AMS/dicionario-libras#como-rodar-o-sistema-completo-docker).
+O `Dockerfile` deste repositório compila o jar com o Maven Wrapper e roda em Java 17.
 
 ### Testes
 
