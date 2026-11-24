@@ -10,7 +10,6 @@ import br.udesc.dicionariolibras.privacidade.aplicacao.ConsentimentoResumo;
 import br.udesc.dicionariolibras.submissoes.dominio.StatusSubmissao;
 
 /** Submissão com os dados dos outros módulos, montada para a tela. */
-public record SubmissaoResposta(UUID id, StatusSubmissao status, Instant dataEnvio, String justificativa,
-        UsuarioResumo autor, UsuarioResumo curador, SinalResumo sinal, VideoResumo video,
-        ConsentimentoResumo consentimento) {
+public record SubmissaoResposta(UUID id, StatusSubmissao status, Instant dataEnvio, UsuarioResumo autor,
+        SinalResumo sinal, VideoResumo video, ConsentimentoResumo consentimento) {
 }

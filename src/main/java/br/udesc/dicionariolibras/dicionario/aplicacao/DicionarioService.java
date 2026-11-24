@@ -1,10 +1,8 @@
 package br.udesc.dicionariolibras.dicionario.aplicacao;
 
 import java.util.Comparator;
-import java.util.List;
 import java.util.UUID;
 
-import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,10 +20,9 @@ import br.udesc.dicionariolibras.dicionario.infra.ConfiguracaoMaoRepository;
 import br.udesc.dicionariolibras.dicionario.infra.RegiaoRepository;
 import br.udesc.dicionariolibras.dicionario.infra.SinalRepository;
 import br.udesc.dicionariolibras.dicionario.infra.VerbeteRepository;
-import br.udesc.dicionariolibras.submissoes.dominio.SubmissaoAprovada;
 import lombok.RequiredArgsConstructor;
 
-/** Interface pública do módulo dicionário: verbetes, sinais propostos, busca e tabelas de apoio. */
+/** Interface pública do módulo dicionário: sinais propostos e tabelas de apoio. */
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -53,7 +50,11 @@ public class DicionarioService {
         Sinal sinal = new Sinal(regiao(dadosSinal.regiaoId()), configuracao(dadosSinal.configuracaoMaoId()),
                 dadosSinal.videoId());
         verbete.adicionarSinal(sinal);
-        verbetes.saveAndFlush(verbete);
+        if (verbete.getId() == null) {
+            verbetes.saveAndFlush(verbete); // verbete novo: o sinal é salvo junto (cascade)
+        } else {
+            sinais.saveAndFlush(sinal); // verbete existente: salva só o novo sinal, sem merge do verbete
+        }
         return sinal.getId();
     }
 
@@ -83,21 +84,6 @@ public class DicionarioService {
         return resumoDe(sinal(sinalId));
     }
 
-    /** Verbetes com pelo menos um sinal publicado, filtrados pela palavra. */
-    @Transactional(readOnly = true)
-    public List<VerbetePublicado> buscar(String termo) {
-        String filtro = termo == null ? "" : termo.trim();
-        return verbetes.buscarPublicados(filtro).stream().map(this::publicado).toList();
-    }
-
-    @Transactional(readOnly = true)
-    public VerbetePublicado verbetePublicado(UUID verbeteId) {
-        Verbete verbete = verbetes.findById(verbeteId)
-                .filter(Verbete::possuiSinalPublicado)
-                .orElseThrow(() -> new NaoEncontradoException("Verbete não encontrado ou ainda não publicado"));
-        return publicado(verbete);
-    }
-
     @Transactional(readOnly = true)
     public ApoioResposta apoio() {
         return new ApoioResposta(
@@ -105,21 +91,6 @@ public class DicionarioService {
                 assuntos.findAll().stream().map(DicionarioService::item).toList(),
                 configuracoes.findAll().stream().sorted(Comparator.comparing(ConfiguracaoMao::getCodigo))
                         .map(DicionarioService::item).toList());
-    }
-
-    /** Quando a curadoria aprova a submissão, o sinal é publicado (diagrama de sequência). */
-    @EventListener
-    public void aoAprovarSubmissao(SubmissaoAprovada evento) {
-        sinal(evento.sinalId()).publicar();
-    }
-
-    private VerbetePublicado publicado(Verbete v) {
-        List<SinalResumo> publicados = v.getSinais().stream()
-                .filter(Sinal::isPublicado)
-                .sorted(Comparator.comparing((Sinal s) -> !s.isPadrao()))
-                .map(this::resumoDe)
-                .toList();
-        return new VerbetePublicado(verbeteResumo(v), publicados);
     }
 
     private SinalResumo resumoDe(Sinal s) {
@@ -165,9 +136,5 @@ public class DicionarioService {
 
     private static ItemApoio item(ConfiguracaoMao c) {
         return new ItemApoio(c.getId(), c.getCodigo(), c.getCodigo());
-    }
-
-    /** Verbete publicado com os sinais visíveis na busca. */
-    public record VerbetePublicado(VerbeteResumo verbete, List<SinalResumo> sinais) {
     }
 }

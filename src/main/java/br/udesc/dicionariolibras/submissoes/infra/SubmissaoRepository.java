@@ -13,6 +13,4 @@ public interface SubmissaoRepository extends JpaRepository<Submissao, UUID> {
     List<Submissao> findByStatusOrderByDataEnvio(StatusSubmissao status);
 
     List<Submissao> findByAutorIdOrderByDataEnvioDesc(UUID autorId);
-
-    List<Submissao> findAllByOrderByDataEnvioDesc();
 }

@@ -66,42 +66,21 @@ então o Docker precisa estar rodando.
 
 Documentação interativa no Swagger: `http://localhost:8080/swagger-ui.html`.
 
-O protótipo ainda não tem login: as rotas que dependem do usuário leem o cabeçalho `X-Usuario-Id`
-com o id de um dos usuários de demonstração (migração `V3`).
-
-| Usuário | Perfil | `X-Usuario-Id` |
-|---|---|---|
-| Ana Souza | Colaborador | `11111111-1111-1111-1111-111111111111` |
-| Bruno Oliveira | Colaborador | `22222222-2222-2222-2222-222222222222` |
-| Marina Costa | Curador | `33333333-3333-3333-3333-333333333333` |
-| Administrador | Administrador | `44444444-4444-4444-4444-444444444444` |
-
-### Submissões (UC01)
-
-| Método | Rota | Quem | O que faz |
-|---|---|---|---|
-| `POST` | `/api/submissoes` | Colaborador | Envia o sinal (multipart: campos do verbete, `video`, `duracaoSeg`, `aceiteTermo`, `sinalizanteMenor`, `termoResponsavel`); fica `EM_ANALISE` |
-| `GET` | `/api/submissoes/minhas` | Autor | Lista as submissões do usuário |
-| `GET` | `/api/submissoes?status=` | Curador | Fila da curadoria (sem `status`, lista todas) |
-| `GET` | `/api/submissoes/{id}` | Autor ou curador | Detalhe, com link temporário do vídeo |
-| `PUT` | `/api/submissoes/{id}` | Autor | Altera (vídeo opcional); com ajuste solicitado, volta para a fila |
-| `DELETE` | `/api/submissoes/{id}` | Autor | Exclui a submissão não aprovada, com o vídeo e o consentimento (LGPD) |
-| `POST` | `/api/submissoes/{id}/aprovar` | Curador | Aprova; o evento `SubmissaoAprovada` publica o sinal |
-| `POST` | `/api/submissoes/{id}/solicitar-ajuste` | Curador | Pede ajuste (`{"motivo": "..."}` obrigatório) |
-| `POST` | `/api/submissoes/{id}/rejeitar` | Curador | Rejeita (`{"motivo": "..."}` obrigatório) |
-
-### Dicionário e apoio
-
 | Método | Rota | O que faz |
 |---|---|---|
-| `GET` | `/api/verbetes?busca=` | Busca verbetes com sinal publicado |
-| `GET` | `/api/verbetes/{id}` | Verbete com o sinal padrão e as variações regionais (com vídeo) |
-| `GET` | `/api/apoio` | Regiões, assuntos e configurações de mão |
-| `GET` | `/api/usuarios` | Usuários de demonstração |
+| `POST` | `/api/submissoes` | Envia um sinal (multipart: campos do verbete, `video`, `duracaoSeg`, `aceiteTermo`, `sinalizanteMenor`, `termoResponsavel`); fica `EM_ANALISE` |
+| `GET` | `/api/submissoes` | Lista as submissões |
+| `GET` | `/api/submissoes/{id}` | Detalhe, com link temporário do vídeo |
+| `PUT` | `/api/submissoes/{id}` | Altera a submissão (vídeo opcional: sem ele, o atual é mantido) |
+| `DELETE` | `/api/submissoes/{id}` | Exclui a submissão com o vídeo e o consentimento (LGPD) |
+| `GET` | `/api/apoio` | Regiões, assuntos e configurações de mão para o formulário |
 
-Erros voltam como `{"status": 422, "mensagem": "O vídeo tem 45 s; o limite é 30 s"}`, com uma mensagem
-que diz como corrigir. A duração do vídeo é lida pelo navegador e enviada em `duracaoSeg`; formato e
-tamanho são conferidos no backend.
+Se a palavra já existir, o sinal entra como variação do mesmo verbete. Erros voltam como
+`{"status": 422, "mensagem": "O vídeo tem 45 s; o limite é 30 s"}`, com uma mensagem que diz como corrigir.
+A duração do vídeo é lida pelo navegador e enviada em `duracaoSeg`; formato e tamanho são conferidos no backend.
+
+O protótipo ainda não tem login: as submissões são feitas pela colaboradora de demonstração criada na
+migração `V3` (`UsuarioService.usuarioAtual()`).
 
 ## Arquitetura
 
@@ -143,7 +122,8 @@ Implementação do [diagrama de classes](https://github.com/Trabalho-AMS/diciona
 | `Submissao`, `StatusSubmissao` | `submissoes` | `enviar()`, `aprovar()`, `solicitarAjuste()`, `rejeitar()`; o curador não avalia a própria submissão e ajuste/rejeição exigem justificativa |
 
 Cada módulo expõe um serviço em `aplicacao` (`UsuarioService`, `DicionarioService`, `MidiaService`,
-`ConsentimentoService`, `SubmissaoService`) e os outros módulos só usam esse serviço.
+`ConsentimentoService`, `SubmissaoService`) e os outros módulos só usam esse serviço. As regras de
+curadoria (`aprovar`, `solicitarAjuste`, `rejeitar`) estão no domínio e nos testes, mas ainda não têm rota.
 
 Detalhes de implementação:
 

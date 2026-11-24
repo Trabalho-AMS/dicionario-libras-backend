@@ -1,6 +1,5 @@
 package br.udesc.dicionariolibras.identidade.aplicacao;
 
-import java.util.List;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
@@ -17,14 +16,17 @@ import lombok.RequiredArgsConstructor;
 @Transactional(readOnly = true)
 public class UsuarioService {
 
+    /** O protótipo ainda não tem login: as submissões são feitas pela colaboradora de demonstração (migração V3). */
+    static final UUID USUARIO_PADRAO = UUID.fromString("11111111-1111-1111-1111-111111111111");
+
     private final UsuarioRepository usuarios;
+
+    public Usuario usuarioAtual() {
+        return buscar(USUARIO_PADRAO);
+    }
 
     public Usuario buscar(UUID id) {
         return usuarios.findById(id).orElseThrow(() -> new NaoEncontradoException("Usuário não encontrado"));
-    }
-
-    public List<UsuarioResumo> listar() {
-        return usuarios.findAll().stream().map(UsuarioResumo::de).toList();
     }
 
     /** Resumo de um usuário para outros módulos; devolve null se o id for nulo. */

@@ -5,13 +5,11 @@ import java.util.stream.Collectors;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.BindException;
-import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
 
-import br.udesc.dicionariolibras.compartilhado.dominio.AcessoNegadoException;
 import br.udesc.dicionariolibras.compartilhado.dominio.NaoEncontradoException;
 import br.udesc.dicionariolibras.compartilhado.dominio.RegraDeNegocioException;
 
@@ -27,16 +25,6 @@ public class TratadorDeErros {
     @ExceptionHandler(NaoEncontradoException.class)
     ResponseEntity<ErroResposta> naoEncontrado(NaoEncontradoException e) {
         return erro(HttpStatus.NOT_FOUND, e.getMessage());
-    }
-
-    @ExceptionHandler(AcessoNegadoException.class)
-    ResponseEntity<ErroResposta> acessoNegado(AcessoNegadoException e) {
-        return erro(HttpStatus.FORBIDDEN, e.getMessage());
-    }
-
-    @ExceptionHandler(MissingRequestHeaderException.class)
-    ResponseEntity<ErroResposta> semUsuario(MissingRequestHeaderException e) {
-        return erro(HttpStatus.UNAUTHORIZED, "Escolha um usuário para continuar");
     }
 
     @ExceptionHandler(BindException.class)

@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -24,7 +23,6 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
-import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
@@ -38,16 +36,12 @@ import br.udesc.dicionariolibras.dicionario.infra.ConfiguracaoMaoRepository;
 import br.udesc.dicionariolibras.dicionario.infra.RegiaoRepository;
 import br.udesc.dicionariolibras.midia.aplicacao.ArmazenamentoDeArquivos;
 
-/** Fluxo completo do UC01 pela API: enviar, pedir ajuste, corrigir, aprovar e encontrar na busca. */
+/** CRUD das submissões pela API, com o PostgreSQL do Testcontainers e o bucket em memória. */
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 @Import({ TestcontainersConfig.class, SubmissaoControllerTest.BucketEmMemoria.class })
 class SubmissaoControllerTest {
-
-    static final String COLABORADORA = "11111111-1111-1111-1111-111111111111";
-    static final String OUTRO_COLABORADOR = "22222222-2222-2222-2222-222222222222";
-    static final String CURADORA = "33333333-3333-3333-3333-333333333333";
 
     @Autowired MockMvc mvc;
     @Autowired AssuntoRepository assuntos;
@@ -56,81 +50,69 @@ class SubmissaoControllerTest {
     @Autowired Map<String, byte[]> bucket;
 
     @Test
-    void fluxoCompletoDoUc01() throws Exception {
+    void crudCompleto() throws Exception {
+        // Criar: o vídeo vai para o bucket e a submissão fica Em análise
         String id = criar("Escola", 12);
-
-        // O vídeo foi para o bucket e a submissão aparece para a autora
         assertThat(bucket.keySet()).anyMatch(k -> k.startsWith("videos/"));
-        mvc.perform(get("/api/submissoes/minhas").header("X-Usuario-Id", COLABORADORA))
+
+        // Listar e detalhar
+        mvc.perform(get("/api/submissoes"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[?(@.id == '" + id + "')].status").value("EM_ANALISE"));
+                .andExpect(jsonPath("$[?(@.id == '" + id + "')].sinal.verbete.palavra").value("Escola"));
+        mvc.perform(get("/api/submissoes/{id}", id))
+                .andExpect(jsonPath("$.video.url").exists())
+                .andExpect(jsonPath("$.consentimento.versaoTermo").value("1.0"));
 
-        // Colaborador não acessa a fila; a curadora acessa
-        mvc.perform(get("/api/submissoes").header("X-Usuario-Id", COLABORADORA)).andExpect(status().isForbidden());
-        mvc.perform(get("/api/submissoes").param("status", "EM_ANALISE").header("X-Usuario-Id", CURADORA))
-                .andExpect(status().isOk());
-
-        // Pedir ajuste exige justificativa
-        mvc.perform(post("/api/submissoes/{id}/solicitar-ajuste", id).header("X-Usuario-Id", CURADORA)
-                .contentType(MediaType.APPLICATION_JSON).content("{\"motivo\":\"\"}"))
-                .andExpect(status().isUnprocessableContent());
-        mvc.perform(post("/api/submissoes/{id}/solicitar-ajuste", id).header("X-Usuario-Id", CURADORA)
-                .contentType(MediaType.APPLICATION_JSON).content("{\"motivo\":\"Enquadre as mãos\"}"))
-                .andExpect(jsonPath("$.status").value("AJUSTE_SOLICITADO"))
-                .andExpect(jsonPath("$.justificativa").value("Enquadre as mãos"));
-
-        // A autora corrige (sem trocar o vídeo) e a submissão volta para a fila
+        // Alterar sem trocar o vídeo
         mvc.perform(formulario(multipart("/api/submissoes/{id}", id).with(r -> {
             r.setMethod("PUT");
             return r;
-        }), "Escola", 12, false).header("X-Usuario-Id", COLABORADORA))
+        }), "Escola", 12, false))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("EM_ANALISE"))
                 .andExpect(jsonPath("$.sinal.verbete.acepcao").value("Acepção corrigida"));
 
-        // Aprovada, o sinal é publicado e aparece na busca
-        mvc.perform(post("/api/submissoes/{id}/aprovar", id).header("X-Usuario-Id", CURADORA))
-                .andExpect(jsonPath("$.status").value("APROVADA"))
-                .andExpect(jsonPath("$.sinal.publicado").value(true));
-        mvc.perform(get("/api/verbetes").param("busca", "esco"))
-                .andExpect(jsonPath("$[0].verbete.palavra").value("Escola"))
-                .andExpect(jsonPath("$[0].sinais[0].video.url").exists());
-
-        // Submissão aprovada não pode ser excluída
-        mvc.perform(delete("/api/submissoes/{id}", id).header("X-Usuario-Id", COLABORADORA))
-                .andExpect(status().isUnprocessableContent());
+        // Excluir apaga a submissão e o vídeo do bucket
+        long videosAntes = bucket.keySet().stream().filter(k -> k.startsWith("videos/")).count();
+        mvc.perform(delete("/api/submissoes/{id}", id)).andExpect(status().isNoContent());
+        assertThat(bucket.keySet().stream().filter(k -> k.startsWith("videos/")).count()).isEqualTo(videosAntes - 1);
+        mvc.perform(get("/api/submissoes/{id}", id)).andExpect(status().isNotFound());
     }
 
     @Test
-    void excluirApagaOVideoDoBucket() throws Exception {
-        String id = criar("Casa", 5);
-        long videosAntes = bucket.keySet().stream().filter(k -> k.startsWith("videos/")).count();
+    void palavraExistenteViraVariacaoDoMesmoVerbete() throws Exception {
+        String primeira = criar("Pai", 5);
+        String segunda = criar("pai", 6);
 
-        mvc.perform(delete("/api/submissoes/{id}", id).header("X-Usuario-Id", OUTRO_COLABORADOR))
-                .andExpect(status().isUnprocessableContent());
-        mvc.perform(delete("/api/submissoes/{id}", id).header("X-Usuario-Id", COLABORADORA))
-                .andExpect(status().isNoContent());
-
-        assertThat(bucket.keySet().stream().filter(k -> k.startsWith("videos/")).count()).isEqualTo(videosAntes - 1);
-        mvc.perform(get("/api/submissoes/{id}", id).header("X-Usuario-Id", COLABORADORA))
-                .andExpect(status().isNotFound());
+        String verbete1 = JsonPath.read(mvc.perform(get("/api/submissoes/{id}", primeira)).andReturn().getResponse()
+                .getContentAsString(), "$.sinal.verbete.id");
+        mvc.perform(get("/api/submissoes/{id}", segunda))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.sinal.verbete.id").value(verbete1))
+                .andExpect(jsonPath("$.sinal.verbete.palavra").value("Pai"));
     }
 
     @Test
     void recusaVideoLongoComMensagemDeComoCorrigir() throws Exception {
-        mvc.perform(formulario(multipart("/api/submissoes"), "Livro", 45, true).header("X-Usuario-Id", COLABORADORA))
+        mvc.perform(formulario(multipart("/api/submissoes"), "Livro", 45, true))
                 .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.mensagem").value("O vídeo tem 45 s; o limite é 30 s"));
     }
 
     @Test
-    void exigeUsuario() throws Exception {
-        mvc.perform(get("/api/submissoes/minhas")).andExpect(status().isUnauthorized());
+    void exigeOAceiteDoTermo() throws Exception {
+        MockMultipartHttpServletRequestBuilder semAceite = formulario(multipart("/api/submissoes"), "Mesa", 5, true);
+        semAceite.with(r -> {
+            r.removeParameter("aceiteTermo");
+            return r;
+        });
+        mvc.perform(semAceite)
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.mensagem").value("É preciso aceitar o termo de uso de imagem para enviar o vídeo"));
     }
 
     private String criar(String palavra, int duracao) throws Exception {
-        String corpo = mvc.perform(formulario(multipart("/api/submissoes"), palavra, duracao, true)
-                .header("X-Usuario-Id", COLABORADORA))
+        String corpo = mvc.perform(formulario(multipart("/api/submissoes"), palavra, duracao, true))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.status").value("EM_ANALISE"))
                 .andReturn().getResponse().getContentAsString();

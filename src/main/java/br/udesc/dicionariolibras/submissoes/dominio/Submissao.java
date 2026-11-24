@@ -115,10 +115,6 @@ public class Submissao extends AbstractAggregateRoot<Submissao> {
         }
     }
 
-    public boolean podeSerVistaPor(Usuario usuario) {
-        return usuario.getId().equals(autorId) || usuario.ehCurador();
-    }
-
     private void verificarAutor(Usuario usuario, String acao) {
         if (!usuario.getId().equals(autorId)) {
             throw new RegraDeNegocioException("Apenas o autor pode " + acao + " a submissão");
