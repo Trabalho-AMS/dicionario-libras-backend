@@ -1,6 +1,8 @@
 package br.udesc.dicionariolibras.midia.infra;
 
+import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.net.URL;
 import java.time.Duration;
 
@@ -40,8 +42,14 @@ public class S3ArmazenamentoDeArquivos implements ArmazenamentoDeArquivos {
 
     @Override
     public void salvar(String chave, InputStream conteudo, long tamanhoBytes, String contentType) {
-        s3.putObject(b -> b.bucket(props.bucket()).key(chave).contentType(contentType),
-                RequestBody.fromInputStream(conteudo, tamanhoBytes));
+        // Os arquivos têm no máximo 50 MB; em memória, o SDK consegue repetir o envio se precisar
+        byte[] bytes;
+        try (conteudo) {
+            bytes = conteudo.readAllBytes();
+        } catch (IOException e) {
+            throw new UncheckedIOException("Não foi possível ler o arquivo enviado", e);
+        }
+        s3.putObject(b -> b.bucket(props.bucket()).key(chave).contentType(contentType), RequestBody.fromBytes(bytes));
     }
 
     @Override

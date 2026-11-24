@@ -84,6 +84,33 @@ public class Verbete {
         sinais.add(sinal);
     }
 
+    /**
+     * Altera os campos do verbete. Um verbete que já tem sinal publicado só muda pela curadoria,
+     * então a alteração vinda de uma submissão é recusada.
+     */
+    public void alterar(String palavra, String acepcao, String exemplo, String classeGramatical, Assunto assunto) {
+        if (possuiSinalPublicado()) {
+            throw new RegraDeNegocioException("O verbete \"" + this.palavra + "\" já está publicado e não pode ser alterado por uma submissão");
+        }
+        this.palavra = palavra;
+        this.acepcao = acepcao;
+        this.exemplo = exemplo;
+        this.classeGramatical = classeGramatical;
+        this.assunto = assunto;
+    }
+
+    /** Remove um sinal ainda não publicado (ex.: o colaborador desistiu da submissão). */
+    public void removerSinal(Sinal sinal) {
+        if (sinal.isPublicado()) {
+            throw new RegraDeNegocioException("Um sinal publicado não pode ser removido por uma submissão");
+        }
+        sinais.remove(sinal);
+    }
+
+    public boolean possuiSinalPublicado() {
+        return sinais.stream().anyMatch(Sinal::isPublicado);
+    }
+
     boolean possuiSinalPadraoPublicado() {
         return sinais.stream().anyMatch(s -> s.isPadrao() && s.isPublicado());
     }

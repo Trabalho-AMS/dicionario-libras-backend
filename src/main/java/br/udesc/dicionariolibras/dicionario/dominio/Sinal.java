@@ -71,6 +71,17 @@ public class Sinal {
         publicado = true;
     }
 
+    /** Altera região, configuração de mão e vídeo de um sinal que ainda não foi publicado. */
+    public void alterar(Regiao regiao, ConfiguracaoMao configuracaoMao, UUID videoId) {
+        if (publicado) {
+            throw new RegraDeNegocioException("Um sinal publicado não pode ser alterado por uma submissão");
+        }
+        this.regiao = regiao;
+        this.padrao = regiao == null;
+        this.configuracaoMao = configuracaoMao;
+        this.videoId = videoId;
+    }
+
     public void despublicar() {
         publicado = false;
     }

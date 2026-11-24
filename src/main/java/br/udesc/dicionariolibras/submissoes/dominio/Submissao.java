@@ -93,6 +93,38 @@ public class Submissao extends AbstractAggregateRoot<Submissao> {
         devolver(curador, motivo, StatusSubmissao.REJEITADA);
     }
 
+    /**
+     * Registra a alteração feita pelo autor. Só é possível antes da aprovação ou rejeição; se o curador
+     * tinha pedido ajuste, a submissão volta para a fila.
+     */
+    public void registrarAlteracao(Usuario autor, Consentimento consentimento) {
+        verificarAutor(autor, "alterar");
+        if (status != StatusSubmissao.EM_ANALISE && status != StatusSubmissao.AJUSTE_SOLICITADO) {
+            throw new RegraDeNegocioException("Só é possível alterar uma submissão em análise ou com ajuste solicitado");
+        }
+        if (status == StatusSubmissao.AJUSTE_SOLICITADO) {
+            enviar(consentimento);
+        }
+    }
+
+    /** O autor pode desistir da submissão enquanto ela não foi aprovada (o sinal aprovado já está publicado). */
+    public void verificarExclusaoPor(Usuario autor) {
+        verificarAutor(autor, "excluir");
+        if (status == StatusSubmissao.APROVADA) {
+            throw new RegraDeNegocioException("A submissão já foi aprovada e o sinal está publicado; ela não pode ser excluída");
+        }
+    }
+
+    public boolean podeSerVistaPor(Usuario usuario) {
+        return usuario.getId().equals(autorId) || usuario.ehCurador();
+    }
+
+    private void verificarAutor(Usuario usuario, String acao) {
+        if (!usuario.getId().equals(autorId)) {
+            throw new RegraDeNegocioException("Apenas o autor pode " + acao + " a submissão");
+        }
+    }
+
     private void devolver(Usuario curador, String motivo, StatusSubmissao novoStatus) {
         if (motivo == null || motivo.isBlank()) {
             throw new RegraDeNegocioException("Informe a justificativa para o colaborador");

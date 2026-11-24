@@ -62,6 +62,47 @@ O `Dockerfile` deste repositório compila o jar com o Maven Wrapper e roda em Ja
 Os testes de integração sobem um PostgreSQL temporário com [Testcontainers](https://testcontainers.com/),
 então o Docker precisa estar rodando.
 
+## API
+
+Documentação interativa no Swagger: `http://localhost:8080/swagger-ui.html`.
+
+O protótipo ainda não tem login: as rotas que dependem do usuário leem o cabeçalho `X-Usuario-Id`
+com o id de um dos usuários de demonstração (migração `V3`).
+
+| Usuário | Perfil | `X-Usuario-Id` |
+|---|---|---|
+| Ana Souza | Colaborador | `11111111-1111-1111-1111-111111111111` |
+| Bruno Oliveira | Colaborador | `22222222-2222-2222-2222-222222222222` |
+| Marina Costa | Curador | `33333333-3333-3333-3333-333333333333` |
+| Administrador | Administrador | `44444444-4444-4444-4444-444444444444` |
+
+### Submissões (UC01)
+
+| Método | Rota | Quem | O que faz |
+|---|---|---|---|
+| `POST` | `/api/submissoes` | Colaborador | Envia o sinal (multipart: campos do verbete, `video`, `duracaoSeg`, `aceiteTermo`, `sinalizanteMenor`, `termoResponsavel`); fica `EM_ANALISE` |
+| `GET` | `/api/submissoes/minhas` | Autor | Lista as submissões do usuário |
+| `GET` | `/api/submissoes?status=` | Curador | Fila da curadoria (sem `status`, lista todas) |
+| `GET` | `/api/submissoes/{id}` | Autor ou curador | Detalhe, com link temporário do vídeo |
+| `PUT` | `/api/submissoes/{id}` | Autor | Altera (vídeo opcional); com ajuste solicitado, volta para a fila |
+| `DELETE` | `/api/submissoes/{id}` | Autor | Exclui a submissão não aprovada, com o vídeo e o consentimento (LGPD) |
+| `POST` | `/api/submissoes/{id}/aprovar` | Curador | Aprova; o evento `SubmissaoAprovada` publica o sinal |
+| `POST` | `/api/submissoes/{id}/solicitar-ajuste` | Curador | Pede ajuste (`{"motivo": "..."}` obrigatório) |
+| `POST` | `/api/submissoes/{id}/rejeitar` | Curador | Rejeita (`{"motivo": "..."}` obrigatório) |
+
+### Dicionário e apoio
+
+| Método | Rota | O que faz |
+|---|---|---|
+| `GET` | `/api/verbetes?busca=` | Busca verbetes com sinal publicado |
+| `GET` | `/api/verbetes/{id}` | Verbete com o sinal padrão e as variações regionais (com vídeo) |
+| `GET` | `/api/apoio` | Regiões, assuntos e configurações de mão |
+| `GET` | `/api/usuarios` | Usuários de demonstração |
+
+Erros voltam como `{"status": 422, "mensagem": "O vídeo tem 45 s; o limite é 30 s"}`, com uma mensagem
+que diz como corrigir. A duração do vídeo é lida pelo navegador e enviada em `duracaoSeg`; formato e
+tamanho são conferidos no backend.
+
 ## Arquitetura
 
 Monólito modular, conforme a [proposta de arquitetura](https://github.com/Trabalho-AMS/dicionario-libras/blob/main/docs/04-arquitetura.md).
@@ -100,6 +141,9 @@ Implementação do [diagrama de classes](https://github.com/Trabalho-AMS/diciona
 | `Video` | `midia` | `validar()`: MP4/WebM, até 30 s e 50 MB (RF04), com mensagem de como corrigir; `transcodificar()` |
 | `Consentimento` | `privacidade` | `ehValido()`: termo aceito, não revogado e, se menor de 18 anos, termo do responsável (LGPD) |
 | `Submissao`, `StatusSubmissao` | `submissoes` | `enviar()`, `aprovar()`, `solicitarAjuste()`, `rejeitar()`; o curador não avalia a própria submissão e ajuste/rejeição exigem justificativa |
+
+Cada módulo expõe um serviço em `aplicacao` (`UsuarioService`, `DicionarioService`, `MidiaService`,
+`ConsentimentoService`, `SubmissaoService`) e os outros módulos só usam esse serviço.
 
 Detalhes de implementação:
 

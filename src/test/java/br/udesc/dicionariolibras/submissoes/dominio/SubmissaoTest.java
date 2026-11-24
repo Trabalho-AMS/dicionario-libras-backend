@@ -117,4 +117,50 @@ class SubmissaoTest {
         ReflectionTestUtils.setField(entidade, "id", UUID.randomUUID());
         return entidade;
     }
+
+    @Test
+    void alterarAposAjusteVoltaParaAFila() {
+        submissao.enviar(consentimento);
+        submissao.solicitarAjuste(curador, "Enquadre melhor as mãos");
+
+        submissao.registrarAlteracao(autor, consentimento);
+
+        assertThat(submissao.getStatus()).isEqualTo(StatusSubmissao.EM_ANALISE);
+        assertThat(submissao.getJustificativa()).isNull();
+    }
+
+    @Test
+    void apenasOAutorAltera() {
+        submissao.enviar(consentimento);
+
+        assertThatThrownBy(() -> submissao.registrarAlteracao(curador, consentimento))
+                .isInstanceOf(RegraDeNegocioException.class)
+                .hasMessageContaining("Apenas o autor");
+    }
+
+    @Test
+    void naoAlteraSubmissaoRejeitada() {
+        submissao.enviar(consentimento);
+        submissao.rejeitar(curador, "Sinal incorreto");
+
+        assertThatThrownBy(() -> submissao.registrarAlteracao(autor, consentimento))
+                .isInstanceOf(RegraDeNegocioException.class);
+    }
+
+    @Test
+    void naoExcluiSubmissaoAprovada() {
+        submissao.enviar(consentimento);
+        submissao.aprovar(curador);
+
+        assertThatThrownBy(() -> submissao.verificarExclusaoPor(autor))
+                .isInstanceOf(RegraDeNegocioException.class)
+                .hasMessageContaining("já foi aprovada");
+    }
+
+    @Test
+    void autorExcluiSubmissaoEmAnalise() {
+        submissao.enviar(consentimento);
+
+        submissao.verificarExclusaoPor(autor);
+    }
 }
