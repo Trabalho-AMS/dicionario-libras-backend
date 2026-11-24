@@ -10,14 +10,28 @@ trabalho final de AMS0002 (UDESC). Frontend: [dicionario-libras-frontend](https:
 - H2 (desenvolvimento) e PostgreSQL (produção)
 - Maven (wrapper incluso)
 
+## Bibliotecas
+
+| Biblioteca | Para quê |
+|---|---|
+| [Lombok](https://projectlombok.org/) | Gera getters, setters, construtores e builders (`@Getter`, `@RequiredArgsConstructor`, `@Builder`...) |
+| [MapStruct](https://mapstruct.org/) | Converte entidades em DTOs e vice-versa. Os mappers (`@Mapper`) viram beans do Spring automaticamente |
+| [Flyway](https://documentation.red-gate.com/fd) | Migrações do banco em `src/main/resources/db/migration` (`V1__descricao.sql`, `V2__...`) |
+| [springdoc-openapi](https://springdoc.org/) | Documentação da API e Swagger UI em `http://localhost:8080/swagger-ui.html` |
+| Bean Validation | Validação dos DTOs de entrada (`@NotBlank`, `@Size`, `@Valid`...) |
+| Spring Boot Test (JUnit 5, Mockito, AssertJ) | Testes |
+
+O esquema do banco é criado **somente** pelas migrações do Flyway; o Hibernate apenas valida (`ddl-auto: validate`).
+Ao criar uma entidade, crie também a migração com a tabela correspondente.
+
 ## Como rodar
 
 ```bash
 ./mvnw spring-boot:run
 ```
 
-A API sobe em `http://localhost:8080`. Teste com `GET /api/status`.
-O console do H2 fica em `http://localhost:8080/h2-console` (JDBC URL `jdbc:h2:mem:dicionario`, usuário `sa`).
+A API sobe em `http://localhost:8080`. Teste com `GET /api/status` ou abra o Swagger em `http://localhost:8080/swagger-ui.html`.
+O console do H2 fica em `http://localhost:8080/h2-console` (JDBC URL `jdbc:h2:mem:dicionario;MODE=PostgreSQL`, usuário `sa`).
 
 ### Com PostgreSQL
 
