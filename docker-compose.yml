@@ -1,14 +1,31 @@
+# Infraestrutura de desenvolvimento: banco PostgreSQL e bucket S3 (SeaweedFS).
+# Subir: docker compose up -d
 services:
   postgres:
-    image: postgres:16
+    image: postgres:17
     environment:
       POSTGRES_DB: dicionario_libras
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_USER: dicionario
+      POSTGRES_PASSWORD: dicionario
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dicionario -d dicionario_libras"]
+      interval: 5s
+      retries: 10
+
+  # Armazenamento de objetos compatível com S3 (vídeos e termos de consentimento).
+  s3:
+    image: chrislusf/seaweedfs:4.55
+    command: server -dir=/data -s3 -s3.port=8333 -s3.config=/etc/seaweedfs/s3.json
+    ports:
+      - "8333:8333"
+    volumes:
+      - s3data:/data
+      - ./docker/s3.json:/etc/seaweedfs/s3.json:ro
 
 volumes:
   pgdata:
+  s3data:

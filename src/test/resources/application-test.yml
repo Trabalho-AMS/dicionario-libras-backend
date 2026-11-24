@@ -1,0 +1,5 @@
+# Nos testes o banco é um PostgreSQL temporário criado pelo Testcontainers (ver TestcontainersConfig)
+# e o bucket não é criado.
+app:
+  armazenamento:
+    criar-bucket: false

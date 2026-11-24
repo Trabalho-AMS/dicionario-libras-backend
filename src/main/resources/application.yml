@@ -1,21 +1,33 @@
 spring:
   application:
     name: dicionario-libras-backend
-  profiles:
-    default: dev
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5433/dicionario_libras}
+    username: ${DB_USER:dicionario}
+    password: ${DB_PASSWORD:dicionario}
   jpa:
     open-in-view: false
+    hibernate:
+      # O esquema é criado pelas migrações do Flyway (src/main/resources/db/migration)
+      ddl-auto: validate
   servlet:
     multipart:
-      max-file-size: 100MB
-      max-request-size: 100MB
+      max-file-size: 50MB
+      max-request-size: 55MB
 
 server:
   port: 8080
 
 app:
   cors:
-    allowed-origins: http://localhost:5173
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
+  armazenamento:
+    endpoint: ${S3_ENDPOINT:http://localhost:8333}
+    regiao: ${S3_REGION:us-east-1}
+    access-key: ${S3_ACCESS_KEY:dicionario}
+    secret-key: ${S3_SECRET_KEY:dicionario123}
+    bucket: ${S3_BUCKET:dicionario-libras}
+    criar-bucket: true
 
 springdoc:
   swagger-ui:

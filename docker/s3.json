@@ -1,0 +1,11 @@
+{
+  "identities": [
+    {
+      "name": "dicionario",
+      "credentials": [
+        { "accessKey": "dicionario", "secretKey": "dicionario123" }
+      ],
+      "actions": ["Admin", "Read", "Write", "List", "Tagging"]
+    }
+  ]
+}

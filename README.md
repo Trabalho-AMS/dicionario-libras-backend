@@ -7,7 +7,7 @@ trabalho final de AMS0002 (UDESC). Frontend: [dicionario-libras-frontend](https:
 
 - Java 17
 - Spring Boot (Web, Data JPA, Validation, Actuator)
-- H2 (desenvolvimento) e PostgreSQL (produção)
+- PostgreSQL 17 e bucket S3 ([SeaweedFS](https://github.com/seaweedfs/seaweedfs)), ambos no Docker
 - Maven (wrapper incluso)
 
 ## Bibliotecas
@@ -26,27 +26,35 @@ Ao criar uma entidade, crie também a migração com a tabela correspondente.
 
 ## Como rodar
 
-```bash
-./mvnw spring-boot:run
-```
-
-A API sobe em `http://localhost:8080`. Teste com `GET /api/status` ou abra o Swagger em `http://localhost:8080/swagger-ui.html`.
-O console do H2 fica em `http://localhost:8080/h2-console` (JDBC URL `jdbc:h2:mem:dicionario;MODE=PostgreSQL`, usuário `sa`).
-
-### Com PostgreSQL
+Requer Java 17 e Docker.
 
 ```bash
-docker compose up -d
-SPRING_PROFILES_ACTIVE=prod ./mvnw spring-boot:run
+docker compose up -d        # sobe o PostgreSQL (porta 5433) e o bucket S3 (porta 8333)
+./mvnw spring-boot:run      # sobe a API em http://localhost:8080
 ```
 
-Variáveis do perfil `prod`: `DB_URL`, `DB_USER`, `DB_PASSWORD`, `CORS_ALLOWED_ORIGINS`.
+- Status: `GET http://localhost:8080/api/status`
+- Swagger: `http://localhost:8080/swagger-ui.html`
+- Na primeira execução o Flyway cria as tabelas e os dados iniciais, e a aplicação cria o bucket `dicionario-libras`.
+
+| Serviço | Endereço | Credenciais |
+|---|---|---|
+| PostgreSQL | `localhost:5433`, banco `dicionario_libras` | `dicionario` / `dicionario` |
+| Bucket S3 | `http://localhost:8333` | access key `dicionario`, secret `dicionario123` |
+
+As configurações podem ser trocadas por variáveis de ambiente: `DB_URL`, `DB_USER`, `DB_PASSWORD`,
+`S3_ENDPOINT`, `S3_REGION`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_BUCKET` e `CORS_ALLOWED_ORIGINS`.
+
+Para apagar os dados e começar do zero: `docker compose down -v`.
 
 ### Testes
 
 ```bash
 ./mvnw test
 ```
+
+Os testes de integração sobem um PostgreSQL temporário com [Testcontainers](https://testcontainers.com/),
+então o Docker precisa estar rodando.
 
 ## Arquitetura
 
@@ -72,3 +80,27 @@ Camadas internas de cada módulo:
 | `aplicacao` | Casos de uso |
 | `dominio` | Entidades e regras de negócio |
 | `infra` | Repositórios, banco e arquivos |
+
+## Classes do domínio
+
+Implementação do [diagrama de classes](https://github.com/Trabalho-AMS/dicionario-libras/blob/main/docs/03-modelagem/README.md).
+
+| Classe | Módulo | Regras |
+|---|---|---|
+| `Usuario`, `Perfil` | `identidade` | `ehCurador()`: curador ou administrador |
+| `Verbete` | `dicionario` | `adicionarSinal()`: no máximo um sinal padrão publicado por verbete |
+| `Sinal` | `dicionario` | Sem região é o padrão nacional; `publicar()` / `despublicar()` |
+| `Regiao`, `ConfiguracaoMao`, `Assunto` | `dicionario` | Dados de apoio (as 27 UFs e assuntos vêm na migração `V2`) |
+| `Video` | `midia` | `validar()`: MP4/WebM, até 30 s e 50 MB (RF04), com mensagem de como corrigir; `transcodificar()` |
+| `Consentimento` | `privacidade` | `ehValido()`: termo aceito, não revogado e, se menor de 18 anos, termo do responsável (LGPD) |
+| `Submissao`, `StatusSubmissao` | `submissoes` | `enviar()`, `aprovar()`, `solicitarAjuste()`, `rejeitar()`; o curador não avalia a própria submissão e ajuste/rejeição exigem justificativa |
+
+Detalhes de implementação:
+
+- Entre módulos diferentes, as entidades se referenciam **pelo id** (ex.: `Submissao.autorId`, `Sinal.videoId`), sem chave
+  estrangeira entre tabelas de módulos diferentes, como pede a arquitetura.
+- Ao aprovar, a `Submissao` registra o evento `SubmissaoAprovada`; ao pedir ajuste ou rejeitar, `SubmissaoDevolvida`.
+  Os eventos são publicados quando a submissão é salva no repositório, para os outros módulos reagirem.
+- O campo `Video.url` guarda a chave do arquivo no bucket; o acesso é feito por URL temporária assinada
+  (`ArmazenamentoDeArquivos.urlTemporaria`).
+- `solicitarAjuste` e `rejeitar` recebem também o curador, para registrar quem decidiu.
