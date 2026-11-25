@@ -1,9 +1,9 @@
 package br.udesc.dicionariolibras.submissoes.dominio;
 
 import java.time.Instant;
+import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
-
-import org.springframework.data.domain.AbstractAggregateRoot;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -18,129 +18,156 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import br.udesc.dicionariolibras.compartilhado.dominio.RegraDeNegocioException;
-import br.udesc.dicionariolibras.identidade.dominio.Usuario;
-import br.udesc.dicionariolibras.privacidade.dominio.Consentimento;
 
 /**
- * Contribuição de um colaborador: liga o autor, o curador, o consentimento e o sinal proposto.
- * Outros módulos são referenciados pelo id, para manter os módulos independentes.
- * Os eventos registrados são publicados quando a submissão é salva pelo repositório.
+ * Sinal enviado por um colaborador: campos do verbete, região, vídeo e consentimento do sinalizante.
+ * O vídeo fica no bucket; aqui fica a chave do arquivo e os metadados.
  */
 @Entity
 @Table(name = "submissao")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class Submissao extends AbstractAggregateRoot<Submissao> {
+public class Submissao {
+
+    public static final Set<String> FORMATOS_ACEITOS = Set.of("mp4", "webm");
+    public static final int DURACAO_MAXIMA_SEG = 30;
+    public static final double TAMANHO_MAXIMO_MB = 50;
+    public static final String VERSAO_TERMO = "1.0";
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @Column(name = "autor_id", nullable = false)
-    private UUID autorId;
+    @Column(nullable = false, length = 120)
+    private String palavra;
 
-    @Column(name = "curador_id")
-    private UUID curadorId;
+    @Column(nullable = false, length = 1000)
+    private String acepcao;
 
-    @Column(name = "consentimento_id", nullable = false)
-    private UUID consentimentoId;
+    @Column(length = 500)
+    private String exemplo;
 
-    @Column(name = "sinal_id", nullable = false, unique = true)
-    private UUID sinalId;
+    @Column(name = "classe_gramatical", length = 40)
+    private String classeGramatical;
 
-    @Column(name = "data_envio")
-    private Instant dataEnvio;
+    @Column(nullable = false, length = 60)
+    private String assunto;
+
+    /** UF da variação regional; nulo é o sinal padrão nacional. */
+    @Column(length = 2)
+    private String regiao;
+
+    @Column(name = "configuracao_mao", nullable = false, length = 10)
+    private String configuracaoMao;
+
+    @Column(name = "video_chave", nullable = false)
+    private String videoChave;
+
+    @Column(name = "video_formato", nullable = false, length = 10)
+    private String videoFormato;
+
+    @Column(name = "video_duracao_seg", nullable = false)
+    private int videoDuracaoSeg;
+
+    @Column(name = "video_tamanho_mb", nullable = false)
+    private double videoTamanhoMB;
+
+    @Column(name = "versao_termo", nullable = false, length = 20)
+    private String versaoTermo;
+
+    @Column(name = "consentimento_em", nullable = false)
+    private Instant consentimentoEm;
+
+    @Column(name = "sinalizante_menor", nullable = false)
+    private boolean sinalizanteMenor;
+
+    /** Chave, no bucket, do termo assinado pelo responsável legal (sinalizante menor de 18 anos). */
+    @Column(name = "termo_responsavel")
+    private String termoResponsavel;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private StatusSubmissao status;
 
-    @Column(length = 1000)
-    private String justificativa;
+    @Column(name = "data_envio", nullable = false)
+    private Instant dataEnvio;
 
-    public Submissao(Usuario autor, Consentimento consentimento, UUID sinalId) {
-        this.autorId = autor.getId();
-        this.consentimentoId = consentimento.getId();
-        this.sinalId = sinalId;
-    }
-
-    /** Envia (ou reenvia após ajuste) a submissão para a fila de curadoria. */
-    public void enviar(Consentimento consentimento) {
-        if (status != null && status != StatusSubmissao.AJUSTE_SOLICITADO) {
-            throw new RegraDeNegocioException("Só é possível reenviar uma submissão com ajuste solicitado");
-        }
-        if (!consentimento.getId().equals(consentimentoId) || !consentimento.ehValido()) {
-            throw new RegraDeNegocioException(
-                    "Consentimento inválido: aceite o termo (e envie o termo do responsável, se o sinalizante for menor de 18 anos)");
-        }
-        status = StatusSubmissao.EM_ANALISE;
-        dataEnvio = Instant.now();
-        justificativa = null;
-        curadorId = null;
-    }
-
-    public void aprovar(Usuario curador) {
-        registrarDecisao(curador);
-        status = StatusSubmissao.APROVADA;
-        registerEvent(new SubmissaoAprovada(id, sinalId, autorId, curadorId));
-    }
-
-    public void solicitarAjuste(Usuario curador, String motivo) {
-        devolver(curador, motivo, StatusSubmissao.AJUSTE_SOLICITADO);
-    }
-
-    public void rejeitar(Usuario curador, String motivo) {
-        devolver(curador, motivo, StatusSubmissao.REJEITADA);
-    }
+    @Column(name = "atualizada_em")
+    private Instant atualizadaEm;
 
     /**
-     * Registra a alteração feita pelo autor. Só é possível antes da aprovação ou rejeição; se o curador
-     * tinha pedido ajuste, a submissão volta para a fila.
+     * Cria a submissão "Em análise". Exige o aceite do termo de uso de imagem e, se o sinalizante for
+     * menor de 18 anos, o termo do responsável legal (LGPD, art. 14).
      */
-    public void registrarAlteracao(Usuario autor, Consentimento consentimento) {
-        verificarAutor(autor, "alterar");
-        if (status != StatusSubmissao.EM_ANALISE && status != StatusSubmissao.AJUSTE_SOLICITADO) {
-            throw new RegraDeNegocioException("Só é possível alterar uma submissão em análise ou com ajuste solicitado");
+    public Submissao(DadosDoSinal dados, VideoDoSinal video, boolean aceiteTermo, boolean sinalizanteMenor,
+            String termoResponsavel) {
+        if (!aceiteTermo) {
+            throw new RegraDeNegocioException("É preciso aceitar o termo de uso de imagem para enviar o vídeo");
         }
-        if (status == StatusSubmissao.AJUSTE_SOLICITADO) {
-            enviar(consentimento);
+        if (sinalizanteMenor && (termoResponsavel == null || termoResponsavel.isBlank())) {
+            throw new RegraDeNegocioException(
+                    "Sinalizante menor de 18 anos: anexe o termo assinado pelo responsável legal (LGPD, art. 14)");
+        }
+        alterarDados(dados);
+        trocarVideo(video);
+        this.versaoTermo = VERSAO_TERMO;
+        this.consentimentoEm = Instant.now();
+        this.sinalizanteMenor = sinalizanteMenor;
+        this.termoResponsavel = termoResponsavel;
+        this.status = StatusSubmissao.EM_ANALISE;
+        this.dataEnvio = Instant.now();
+    }
+
+    public void alterarDados(DadosDoSinal dados) {
+        this.palavra = dados.palavra().trim();
+        this.acepcao = dados.acepcao().trim();
+        this.exemplo = dados.exemplo();
+        this.classeGramatical = dados.classeGramatical();
+        this.assunto = dados.assunto();
+        this.regiao = dados.regiao();
+        this.configuracaoMao = dados.configuracaoMao();
+        if (id != null) {
+            this.atualizadaEm = Instant.now();
         }
     }
 
-    /** O autor pode desistir da submissão enquanto ela não foi aprovada (o sinal aprovado já está publicado). */
-    public void verificarExclusaoPor(Usuario autor) {
-        verificarAutor(autor, "excluir");
-        if (status == StatusSubmissao.APROVADA) {
-            throw new RegraDeNegocioException("A submissão já foi aprovada e o sinal está publicado; ela não pode ser excluída");
+    /** Troca o vídeo; ele já precisa ter passado em {@link #motivoVideoInvalido}. */
+    public void trocarVideo(VideoDoSinal video) {
+        motivoVideoInvalido(video.formato(), video.duracaoSeg(), video.tamanhoMB()).ifPresent(motivo -> {
+            throw new RegraDeNegocioException(motivo);
+        });
+        this.videoChave = video.chave();
+        this.videoFormato = video.formato();
+        this.videoDuracaoSeg = video.duracaoSeg();
+        this.videoTamanhoMB = video.tamanhoMB();
+        if (id != null) {
+            this.atualizadaEm = Instant.now();
         }
     }
 
-    private void verificarAutor(Usuario usuario, String acao) {
-        if (!usuario.getId().equals(autorId)) {
-            throw new RegraDeNegocioException("Apenas o autor pode " + acao + " a submissão");
+    /** Regras do RF04, com uma mensagem que diz como corrigir (diretriz de acessibilidade). */
+    public static Optional<String> motivoVideoInvalido(String formato, int duracaoSeg, double tamanhoMB) {
+        if (formato == null || !FORMATOS_ACEITOS.contains(formato)) {
+            return Optional.of("Formato \"" + formato + "\" não aceito; envie MP4 ou WebM");
         }
+        if (duracaoSeg <= 0) {
+            return Optional.of("Não foi possível ler a duração do vídeo");
+        }
+        if (duracaoSeg > DURACAO_MAXIMA_SEG) {
+            return Optional.of("O vídeo tem " + duracaoSeg + " s; o limite é " + DURACAO_MAXIMA_SEG + " s");
+        }
+        if (tamanhoMB > TAMANHO_MAXIMO_MB) {
+            return Optional.of(String.format("O vídeo tem %.1f MB; o limite é %.0f MB", tamanhoMB, TAMANHO_MAXIMO_MB));
+        }
+        return Optional.empty();
     }
 
-    private void devolver(Usuario curador, String motivo, StatusSubmissao novoStatus) {
-        if (motivo == null || motivo.isBlank()) {
-            throw new RegraDeNegocioException("Informe a justificativa para o colaborador");
-        }
-        registrarDecisao(curador);
-        status = novoStatus;
-        justificativa = motivo;
-        registerEvent(new SubmissaoDevolvida(id, sinalId, autorId, novoStatus, motivo));
+    /** Campos do verbete e do sinal informados pelo colaborador. */
+    public record DadosDoSinal(String palavra, String acepcao, String exemplo, String classeGramatical,
+            String assunto, String regiao, String configuracaoMao) {
     }
 
-    private void registrarDecisao(Usuario curador) {
-        if (status != StatusSubmissao.EM_ANALISE) {
-            throw new RegraDeNegocioException("A submissão não está em análise");
-        }
-        if (!curador.ehCurador()) {
-            throw new RegraDeNegocioException("Apenas curadores podem avaliar submissões");
-        }
-        if (curador.getId().equals(autorId)) {
-            throw new RegraDeNegocioException("O curador não pode avaliar a própria submissão");
-        }
-        curadorId = curador.getId();
+    /** Vídeo já guardado no bucket. */
+    public record VideoDoSinal(String chave, String formato, int duracaoSeg, double tamanhoMB) {
     }
 }

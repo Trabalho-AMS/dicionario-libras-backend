@@ -1,59 +1,48 @@
 package br.udesc.dicionariolibras.submissoes.aplicacao;
 
+import java.time.Duration;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import br.udesc.dicionariolibras.compartilhado.dominio.NaoEncontradoException;
 import br.udesc.dicionariolibras.compartilhado.dominio.RegraDeNegocioException;
-import br.udesc.dicionariolibras.dicionario.aplicacao.DadosSinal;
-import br.udesc.dicionariolibras.dicionario.aplicacao.DicionarioService;
-import br.udesc.dicionariolibras.dicionario.aplicacao.SinalResumo;
-import br.udesc.dicionariolibras.identidade.aplicacao.UsuarioService;
-import br.udesc.dicionariolibras.identidade.dominio.Usuario;
-import br.udesc.dicionariolibras.midia.aplicacao.MidiaService;
-import br.udesc.dicionariolibras.privacidade.aplicacao.ConsentimentoService;
-import br.udesc.dicionariolibras.privacidade.dominio.Consentimento;
 import br.udesc.dicionariolibras.submissoes.dominio.Submissao;
+import br.udesc.dicionariolibras.submissoes.dominio.Submissao.VideoDoSinal;
 import br.udesc.dicionariolibras.submissoes.infra.SubmissaoRepository;
 import lombok.RequiredArgsConstructor;
 
-/**
- * CRUD das submissões de sinais com vídeo (UC01, passos 1 a 4). Usa os outros módulos apenas pelas
- * interfaces públicas deles (serviços de aplicação), como pede a arquitetura.
- */
+/** CRUD das submissões de sinais com vídeo. */
 @Service
 @RequiredArgsConstructor
 @Transactional
 public class SubmissaoService {
 
+    private static final Duration VALIDADE_LINK = Duration.ofHours(1);
+
     private final SubmissaoRepository submissoes;
-    private final DicionarioService dicionario;
-    private final MidiaService midia;
-    private final ConsentimentoService consentimentos;
-    private final UsuarioService usuarios;
+    private final ArmazenamentoDeArquivos armazenamento;
 
-    /** Valida o vídeo, registra o consentimento e coloca a submissão "Em análise". */
-    public SubmissaoResposta criar(DadosSubmissao dados) {
-        Usuario autor = usuarios.usuarioAtual();
-        Consentimento consentimento = consentimentos.registrar(dados.aceiteTermo(), dados.sinalizanteMenor(),
-                dados.termoResponsavel());
-        UUID videoId = midia.enviar(dados.video(), duracao(dados));
-        UUID sinalId = dicionario.proporSinal(dados.verbete(),
-                new DadosSinal(dados.regiaoId(), dados.configuracaoMaoId(), videoId));
-
-        Submissao submissao = new Submissao(autor, consentimento, sinalId);
-        submissao.enviar(consentimento);
+    public SubmissaoResposta criar(NovaSubmissao nova) {
+        if (nova.video() == null) {
+            throw new RegraDeNegocioException("Envie o vídeo do sinal");
+        }
+        VideoDoSinal video = guardarVideo(nova.video(), nova.duracaoSeg());
+        String termo = nova.sinalizanteMenor() && nova.termoResponsavel() != null
+                ? guardar("termos/", nova.termoResponsavel())
+                : null;
+        Submissao submissao = new Submissao(nova.dados(), video, nova.aceiteTermo(), nova.sinalizanteMenor(), termo);
         return resposta(submissoes.save(submissao));
     }
 
     @Transactional(readOnly = true)
     public List<SubmissaoResposta> listar() {
-        return submissoes.findByAutorIdOrderByDataEnvioDesc(usuarios.usuarioAtual().getId()).stream()
-                .map(this::resposta)
-                .toList();
+        return submissoes.findAllByOrderByDataEnvioDesc().stream().map(this::resposta).toList();
     }
 
     @Transactional(readOnly = true)
@@ -61,49 +50,85 @@ public class SubmissaoService {
         return resposta(buscar(id));
     }
 
-    /** Altera os campos e, se vier um novo vídeo, troca o vídeo (o antigo é apagado do bucket). */
-    public SubmissaoResposta alterar(UUID id, DadosSubmissao dados) {
+    /** Altera os campos; se vier um novo vídeo, ele substitui o atual, que é apagado do bucket. */
+    public SubmissaoResposta alterar(UUID id, NovaSubmissao nova) {
         Submissao submissao = buscar(id);
-        Consentimento consentimento = consentimentos.buscar(submissao.getConsentimentoId());
-        submissao.registrarAlteracao(usuarios.usuarioAtual(), consentimento);
-
-        SinalResumo sinalAtual = dicionario.resumo(submissao.getSinalId());
-        UUID videoId = sinalAtual.videoId();
-        if (dados.video() != null) {
-            videoId = midia.enviar(dados.video(), duracao(dados));
-            midia.remover(sinalAtual.videoId());
+        submissao.alterarDados(nova.dados());
+        if (nova.video() != null) {
+            String videoAntigo = submissao.getVideoChave();
+            submissao.trocarVideo(guardarVideo(nova.video(), nova.duracaoSeg()));
+            depoisDeConfirmar(() -> armazenamento.remover(videoAntigo));
         }
-        dicionario.alterarSinalProposto(submissao.getSinalId(), dados.verbete(),
-                new DadosSinal(dados.regiaoId(), dados.configuracaoMaoId(), videoId));
-        return resposta(submissoes.save(submissao));
+        return resposta(submissao);
     }
 
-    /** Exclui a submissão com o sinal, o vídeo e o consentimento (LGPD). */
+    /** Exclui a submissão e apaga o vídeo e o termo do bucket (LGPD). */
     public void excluir(UUID id) {
         Submissao submissao = buscar(id);
-        submissao.verificarExclusaoPor(usuarios.usuarioAtual());
-        SinalResumo sinal = dicionario.resumo(submissao.getSinalId());
-
         submissoes.delete(submissao);
-        dicionario.removerSinalProposto(sinal.id());
-        midia.remover(sinal.videoId());
-        consentimentos.excluir(submissao.getConsentimentoId());
+        depoisDeConfirmar(() -> {
+            armazenamento.remover(submissao.getVideoChave());
+            if (submissao.getTermoResponsavel() != null) {
+                armazenamento.remover(submissao.getTermoResponsavel());
+            }
+        });
     }
 
     private Submissao buscar(UUID id) {
         return submissoes.findById(id).orElseThrow(() -> new NaoEncontradoException("Submissão não encontrada"));
     }
 
-    private static int duracao(DadosSubmissao dados) {
-        if (dados.duracaoSeg() == null) {
-            throw new RegraDeNegocioException("Informe a duração do vídeo");
-        }
-        return dados.duracaoSeg();
+    /** Valida o vídeo (RF04) antes de mandar para o bucket. A duração é lida pelo navegador. */
+    private VideoDoSinal guardarVideo(ArquivoEnviado arquivo, Integer duracaoSeg) {
+        String formato = formatoDe(arquivo);
+        int duracao = duracaoSeg == null ? 0 : duracaoSeg;
+        Submissao.motivoVideoInvalido(formato, duracao, arquivo.tamanhoMB()).ifPresent(motivo -> {
+            throw new RegraDeNegocioException(motivo);
+        });
+        return new VideoDoSinal(guardar("videos/", arquivo), formato, duracao, arquivo.tamanhoMB());
+    }
+
+    private String guardar(String pasta, ArquivoEnviado arquivo) {
+        String chave = pasta + UUID.randomUUID() + extensao(arquivo.nome());
+        armazenamento.salvar(chave, arquivo.conteudo(), arquivo.contentType());
+        // Se algo falhar depois do upload, o arquivo não fica perdido no bucket
+        aoDesfazer(() -> armazenamento.remover(chave));
+        return chave;
     }
 
     private SubmissaoResposta resposta(Submissao s) {
-        SinalResumo sinal = dicionario.resumo(s.getSinalId());
-        return new SubmissaoResposta(s.getId(), s.getStatus(), s.getDataEnvio(), usuarios.resumo(s.getAutorId()),
-                sinal, midia.resumo(sinal.videoId()), consentimentos.resumo(s.getConsentimentoId()));
+        return SubmissaoResposta.de(s, armazenamento.urlTemporaria(s.getVideoChave(), VALIDADE_LINK).toString());
+    }
+
+    private static String formatoDe(ArquivoEnviado arquivo) {
+        String tipo = arquivo.contentType() == null ? "" : arquivo.contentType().toLowerCase(Locale.ROOT);
+        return tipo.startsWith("video/") ? tipo.substring("video/".length()) : extensao(arquivo.nome()).replace(".", "");
+    }
+
+    private static String extensao(String nome) {
+        if (nome == null || nome.lastIndexOf('.') < 0) {
+            return "";
+        }
+        return nome.substring(nome.lastIndexOf('.')).toLowerCase(Locale.ROOT);
+    }
+
+    private static void aoDesfazer(Runnable acao) {
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCompletion(int status) {
+                if (status == STATUS_ROLLED_BACK) {
+                    acao.run();
+                }
+            }
+        });
+    }
+
+    private static void depoisDeConfirmar(Runnable acao) {
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                acao.run();
+            }
+        });
     }
 }

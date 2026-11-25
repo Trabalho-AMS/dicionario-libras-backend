@@ -22,7 +22,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
-/** CRUD das submissões de sinais com vídeo. */
+/** CRUD das submissões de sinais com vídeo (multipart, por causa do upload). */
 @RestController
 @RequestMapping("/api/submissoes")
 @RequiredArgsConstructor

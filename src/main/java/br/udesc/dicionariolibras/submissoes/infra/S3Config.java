@@ -1,4 +1,4 @@
-package br.udesc.dicionariolibras.midia.infra;
+package br.udesc.dicionariolibras.submissoes.infra;
 
 import java.net.URI;
 

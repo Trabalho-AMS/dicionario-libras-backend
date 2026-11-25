@@ -7,8 +7,6 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import java.io.ByteArrayInputStream;
-import java.io.InputStream;
 import java.net.URI;
 import java.net.URL;
 import java.time.Duration;
@@ -31,10 +29,7 @@ import org.springframework.test.web.servlet.request.MockMultipartHttpServletRequ
 import com.jayway.jsonpath.JsonPath;
 
 import br.udesc.dicionariolibras.TestcontainersConfig;
-import br.udesc.dicionariolibras.dicionario.infra.AssuntoRepository;
-import br.udesc.dicionariolibras.dicionario.infra.ConfiguracaoMaoRepository;
-import br.udesc.dicionariolibras.dicionario.infra.RegiaoRepository;
-import br.udesc.dicionariolibras.midia.aplicacao.ArmazenamentoDeArquivos;
+import br.udesc.dicionariolibras.submissoes.aplicacao.ArmazenamentoDeArquivos;
 
 /** CRUD das submissões pela API, com o PostgreSQL do Testcontainers e o bucket em memória. */
 @SpringBootTest
@@ -44,9 +39,6 @@ import br.udesc.dicionariolibras.midia.aplicacao.ArmazenamentoDeArquivos;
 class SubmissaoControllerTest {
 
     @Autowired MockMvc mvc;
-    @Autowired AssuntoRepository assuntos;
-    @Autowired RegiaoRepository regioes;
-    @Autowired ConfiguracaoMaoRepository configuracoes;
     @Autowired Map<String, byte[]> bucket;
 
     @Test
@@ -58,10 +50,10 @@ class SubmissaoControllerTest {
         // Listar e detalhar
         mvc.perform(get("/api/submissoes"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[?(@.id == '" + id + "')].sinal.verbete.palavra").value("Escola"));
+                .andExpect(jsonPath("$[?(@.id == '" + id + "')].palavra").value("Escola"));
         mvc.perform(get("/api/submissoes/{id}", id))
                 .andExpect(jsonPath("$.video.url").exists())
-                .andExpect(jsonPath("$.consentimento.versaoTermo").value("1.0"));
+                .andExpect(jsonPath("$.versaoTermo").value("1.0"));
 
         // Alterar sem trocar o vídeo
         mvc.perform(formulario(multipart("/api/submissoes/{id}", id).with(r -> {
@@ -70,26 +62,14 @@ class SubmissaoControllerTest {
         }), "Escola", 12, false))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("EM_ANALISE"))
-                .andExpect(jsonPath("$.sinal.verbete.acepcao").value("Acepção corrigida"));
+                .andExpect(jsonPath("$.acepcao").value("Acepção corrigida"))
+                .andExpect(jsonPath("$.atualizadaEm").exists());
 
         // Excluir apaga a submissão e o vídeo do bucket
         long videosAntes = bucket.keySet().stream().filter(k -> k.startsWith("videos/")).count();
         mvc.perform(delete("/api/submissoes/{id}", id)).andExpect(status().isNoContent());
         assertThat(bucket.keySet().stream().filter(k -> k.startsWith("videos/")).count()).isEqualTo(videosAntes - 1);
         mvc.perform(get("/api/submissoes/{id}", id)).andExpect(status().isNotFound());
-    }
-
-    @Test
-    void palavraExistenteViraVariacaoDoMesmoVerbete() throws Exception {
-        String primeira = criar("Pai", 5);
-        String segunda = criar("pai", 6);
-
-        String verbete1 = JsonPath.read(mvc.perform(get("/api/submissoes/{id}", primeira)).andReturn().getResponse()
-                .getContentAsString(), "$.sinal.verbete.id");
-        mvc.perform(get("/api/submissoes/{id}", segunda))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.sinal.verbete.id").value(verbete1))
-                .andExpect(jsonPath("$.sinal.verbete.palavra").value("Pai"));
     }
 
     @Test
@@ -126,9 +106,9 @@ class SubmissaoControllerTest {
         }
         req.param("palavra", palavra)
                 .param("acepcao", comVideo ? "Acepção original" : "Acepção corrigida")
-                .param("assuntoId", assuntos.findAll().get(0).getId().toString())
-                .param("regiaoId", regioes.findAll().get(0).getId().toString())
-                .param("configuracaoMaoId", configuracoes.findAll().get(0).getId().toString())
+                .param("assunto", "Educação")
+                .param("regiao", "SC")
+                .param("configuracaoMao", "CM01")
                 .param("duracaoSeg", String.valueOf(duracao))
                 .param("aceiteTermo", "true");
         return req;
@@ -148,12 +128,8 @@ class SubmissaoControllerTest {
         ArmazenamentoDeArquivos armazenamentoEmMemoria(Map<String, byte[]> bucket) {
             return new ArmazenamentoDeArquivos() {
                 @Override
-                public void salvar(String chave, InputStream conteudo, long tamanhoBytes, String contentType) {
-                    try (conteudo) {
-                        bucket.put(chave, conteudo.readAllBytes());
-                    } catch (Exception e) {
-                        throw new IllegalStateException(e);
-                    }
+                public void salvar(String chave, byte[] conteudo, String contentType) {
+                    bucket.put(chave, conteudo);
                 }
 
                 @Override

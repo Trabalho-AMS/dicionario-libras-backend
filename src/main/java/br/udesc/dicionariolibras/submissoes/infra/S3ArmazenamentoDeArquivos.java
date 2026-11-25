@@ -1,8 +1,5 @@
-package br.udesc.dicionariolibras.midia.infra;
+package br.udesc.dicionariolibras.submissoes.infra;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.UncheckedIOException;
 import java.net.URL;
 import java.time.Duration;
 
@@ -12,7 +9,7 @@ import org.springframework.stereotype.Component;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import br.udesc.dicionariolibras.midia.aplicacao.ArmazenamentoDeArquivos;
+import br.udesc.dicionariolibras.submissoes.aplicacao.ArmazenamentoDeArquivos;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.NoSuchBucketException;
@@ -41,15 +38,8 @@ public class S3ArmazenamentoDeArquivos implements ArmazenamentoDeArquivos {
     }
 
     @Override
-    public void salvar(String chave, InputStream conteudo, long tamanhoBytes, String contentType) {
-        // Os arquivos têm no máximo 50 MB; em memória, o SDK consegue repetir o envio se precisar
-        byte[] bytes;
-        try (conteudo) {
-            bytes = conteudo.readAllBytes();
-        } catch (IOException e) {
-            throw new UncheckedIOException("Não foi possível ler o arquivo enviado", e);
-        }
-        s3.putObject(b -> b.bucket(props.bucket()).key(chave).contentType(contentType), RequestBody.fromBytes(bytes));
+    public void salvar(String chave, byte[] conteudo, String contentType) {
+        s3.putObject(b -> b.bucket(props.bucket()).key(chave).contentType(contentType), RequestBody.fromBytes(conteudo));
     }
 
     @Override

@@ -16,7 +16,7 @@ trabalho final de AMS0002 (UDESC). Frontend: [dicionario-libras-frontend](https:
 |---|---|
 | [Lombok](https://projectlombok.org/) | Gera getters, setters, construtores e builders (`@Getter`, `@RequiredArgsConstructor`, `@Builder`...) |
 | [MapStruct](https://mapstruct.org/) | Converte entidades em DTOs e vice-versa. Os mappers (`@Mapper`) viram beans do Spring automaticamente |
-| [Flyway](https://documentation.red-gate.com/fd) | Migrações do banco em `src/main/resources/db/migration` (`V1__descricao.sql`, `V2__...`) |
+| [Flyway](https://documentation.red-gate.com/fd) | Migrações do banco em `src/main/resources/db/migration` (`V1__esquema_inicial.sql`) |
 | [springdoc-openapi](https://springdoc.org/) | Documentação da API e Swagger UI em `http://localhost:8080/swagger-ui.html` |
 | Bean Validation | Validação dos DTOs de entrada (`@NotBlank`, `@Size`, `@Valid`...) |
 | Spring Boot Test (JUnit 5, Mockito, AssertJ) | Testes |
@@ -35,7 +35,7 @@ docker compose up -d        # sobe o PostgreSQL (porta 5433) e o bucket S3 (port
 
 - Status: `GET http://localhost:8080/api/status`
 - Swagger: `http://localhost:8080/swagger-ui.html`
-- Na primeira execução o Flyway cria as tabelas e os dados iniciais, e a aplicação cria o bucket `dicionario-libras`.
+- Na primeira execução o Flyway cria a tabela e a aplicação cria o bucket `dicionario-libras`.
 
 | Serviço | Endereço | Credenciais |
 |---|---|---|
@@ -68,69 +68,38 @@ Documentação interativa no Swagger: `http://localhost:8080/swagger-ui.html`.
 
 | Método | Rota | O que faz |
 |---|---|---|
-| `POST` | `/api/submissoes` | Envia um sinal (multipart: campos do verbete, `video`, `duracaoSeg`, `aceiteTermo`, `sinalizanteMenor`, `termoResponsavel`); fica `EM_ANALISE` |
+| `POST` | `/api/submissoes` | Envia um sinal (multipart); fica `EM_ANALISE` |
 | `GET` | `/api/submissoes` | Lista as submissões |
 | `GET` | `/api/submissoes/{id}` | Detalhe, com link temporário do vídeo |
 | `PUT` | `/api/submissoes/{id}` | Altera a submissão (vídeo opcional: sem ele, o atual é mantido) |
-| `DELETE` | `/api/submissoes/{id}` | Exclui a submissão com o vídeo e o consentimento (LGPD) |
-| `GET` | `/api/apoio` | Regiões, assuntos e configurações de mão para o formulário |
+| `DELETE` | `/api/submissoes/{id}` | Exclui a submissão e apaga o vídeo e o termo do bucket (LGPD) |
 
-Se a palavra já existir, o sinal entra como variação do mesmo verbete. Erros voltam como
-`{"status": 422, "mensagem": "O vídeo tem 45 s; o limite é 30 s"}`, com uma mensagem que diz como corrigir.
-A duração do vídeo é lida pelo navegador e enviada em `duracaoSeg`; formato e tamanho são conferidos no backend.
+Campos do formulário: `palavra`, `acepcao`, `exemplo`, `classeGramatical`, `assunto`, `regiao` (UF; vazio é o
+sinal nacional), `configuracaoMao`, `video`, `duracaoSeg`, `aceiteTermo`, `sinalizanteMenor` e `termoResponsavel`.
 
-O protótipo ainda não tem login: as submissões são feitas pela colaboradora de demonstração criada na
-migração `V3` (`UsuarioService.usuarioAtual()`).
+Erros voltam como `{"status": 422, "mensagem": "O vídeo tem 45 s; o limite é 30 s"}`, com uma mensagem que diz
+como corrigir. A duração do vídeo é lida pelo navegador e enviada em `duracaoSeg`; formato e tamanho são
+conferidos no backend.
 
 ## Arquitetura
 
 Monólito modular, conforme a [proposta de arquitetura](https://github.com/Trabalho-AMS/dicionario-libras/blob/main/docs/04-arquitetura.md).
-Cada módulo fica em `src/main/java/br/udesc/dicionariolibras/<modulo>` e só acessa outro módulo pela interface pública dele.
+Cada módulo fica em `src/main/java/br/udesc/dicionariolibras/<modulo>`, com as camadas `http` (rotas),
+`aplicacao` (casos de uso), `dominio` (regras) e `infra` (banco e arquivos).
 
-| Módulo | Responsabilidade |
-|---|---|
-| `identidade` | Cadastro, login e perfis |
-| `dicionario` | Verbetes, sinais, variações regionais e busca |
-| `submissoes` | Envio de contribuições e curadoria |
-| `midia` | Upload, validação e processamento de vídeo |
-| `privacidade` | Consentimento e descarte de dados (LGPD) |
-| `notificacoes` | E-mails ao usuário |
-| `auditoria` | Registro das ações |
-| `compartilhado` | Configurações e utilitários comuns |
+Neste protótipo, **só o módulo `submissoes` está implementado**: ele faz o CRUD das submissões com upload do
+vídeo. Os demais módulos (`identidade`, `dicionario`, `midia`, `privacidade`, `notificacoes` e `auditoria`)
+estão criados vazios, para receber as próximas funcionalidades.
 
-Camadas internas de cada módulo:
-
-| Camada | Conteúdo |
-|---|---|
-| `http` | Controllers (rotas) |
-| `aplicacao` | Casos de uso |
-| `dominio` | Entidades e regras de negócio |
-| `infra` | Repositórios, banco e arquivos |
-
-## Classes do domínio
-
-Implementação do [diagrama de classes](https://github.com/Trabalho-AMS/dicionario-libras/blob/main/docs/03-modelagem/README.md).
-
-| Classe | Módulo | Regras |
+| Arquivo | Camada | O que faz |
 |---|---|---|
-| `Usuario`, `Perfil` | `identidade` | `ehCurador()`: curador ou administrador |
-| `Verbete` | `dicionario` | `adicionarSinal()`: no máximo um sinal padrão publicado por verbete |
-| `Sinal` | `dicionario` | Sem região é o padrão nacional; `publicar()` / `despublicar()` |
-| `Regiao`, `ConfiguracaoMao`, `Assunto` | `dicionario` | Dados de apoio (as 27 UFs e assuntos vêm na migração `V2`) |
-| `Video` | `midia` | `validar()`: MP4/WebM, até 30 s e 50 MB (RF04), com mensagem de como corrigir; `transcodificar()` |
-| `Consentimento` | `privacidade` | `ehValido()`: termo aceito, não revogado e, se menor de 18 anos, termo do responsável (LGPD) |
-| `Submissao`, `StatusSubmissao` | `submissoes` | `enviar()`, `aprovar()`, `solicitarAjuste()`, `rejeitar()`; o curador não avalia a própria submissão e ajuste/rejeição exigem justificativa |
+| `SubmissaoController` | `http` | Rotas do CRUD; recebe o formulário multipart (`FormularioSubmissao`) |
+| `SubmissaoService` | `aplicacao` | Casos de uso: criar, listar, detalhar, alterar e excluir |
+| `Submissao` | `dominio` | Entidade; valida o vídeo (MP4/WebM, até 30 s e 50 MB) e o consentimento (aceite do termo e, se menor de 18 anos, termo do responsável) |
+| `SubmissaoRepository` | `infra` | Acesso ao PostgreSQL |
+| `S3ArmazenamentoDeArquivos` | `infra` | Guarda os arquivos no bucket S3 e gera os links temporários |
 
-Cada módulo expõe um serviço em `aplicacao` (`UsuarioService`, `DicionarioService`, `MidiaService`,
-`ConsentimentoService`, `SubmissaoService`) e os outros módulos só usam esse serviço. As regras de
-curadoria (`aprovar`, `solicitarAjuste`, `rejeitar`) estão no domínio e nos testes, mas ainda não têm rota.
+O banco tem uma tabela, `submissao`, criada pela migração `V1` do Flyway. Os arquivos ficam no bucket: a
+tabela guarda só a chave de cada um.
 
-Detalhes de implementação:
-
-- Entre módulos diferentes, as entidades se referenciam **pelo id** (ex.: `Submissao.autorId`, `Sinal.videoId`), sem chave
-  estrangeira entre tabelas de módulos diferentes, como pede a arquitetura.
-- Ao aprovar, a `Submissao` registra o evento `SubmissaoAprovada`; ao pedir ajuste ou rejeitar, `SubmissaoDevolvida`.
-  Os eventos são publicados quando a submissão é salva no repositório, para os outros módulos reagirem.
-- O campo `Video.url` guarda a chave do arquivo no bucket; o acesso é feito por URL temporária assinada
-  (`ArmazenamentoDeArquivos.urlTemporaria`).
-- `solicitarAjuste` e `rejeitar` recebem também o curador, para registrar quem decidiu.
+> Se você já tinha rodado uma versão anterior, apague o banco antigo uma vez: `docker compose down -v`.

@@ -3,164 +3,73 @@ package br.udesc.dicionariolibras.submissoes.dominio;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import java.util.UUID;
-
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.test.util.ReflectionTestUtils;
 
 import br.udesc.dicionariolibras.compartilhado.dominio.RegraDeNegocioException;
-import br.udesc.dicionariolibras.identidade.dominio.Perfil;
-import br.udesc.dicionariolibras.identidade.dominio.Usuario;
-import br.udesc.dicionariolibras.privacidade.dominio.Consentimento;
+import br.udesc.dicionariolibras.submissoes.dominio.Submissao.DadosDoSinal;
+import br.udesc.dicionariolibras.submissoes.dominio.Submissao.VideoDoSinal;
 
 class SubmissaoTest {
 
-    private Usuario autor;
-    private Usuario curador;
-    private Consentimento consentimento;
-    private Submissao submissao;
+    private final DadosDoSinal dados = new DadosDoSinal("Pai", "Genitor", null, "Substantivo", "Família", "RS", "CM01");
+    private final VideoDoSinal video = new VideoDoSinal("videos/pai.mp4", "mp4", 8, 4.2);
 
-    @BeforeEach
-    void setUp() {
-        autor = comId(new Usuario("Ana", "ana@exemplo.com", Perfil.COLABORADOR));
-        curador = comId(new Usuario("Caio", "caio@exemplo.com", Perfil.CURADOR));
-        consentimento = comId(new Consentimento("1.0", false, null));
-        submissao = comId(new Submissao(autor, consentimento, UUID.randomUUID()));
+    @Test
+    void criaEmAnaliseComConsentimentoRegistrado() {
+        Submissao s = new Submissao(dados, video, true, false, null);
+
+        assertThat(s.getStatus()).isEqualTo(StatusSubmissao.EM_ANALISE);
+        assertThat(s.getVersaoTermo()).isEqualTo(Submissao.VERSAO_TERMO);
+        assertThat(s.getConsentimentoEm()).isNotNull();
+        assertThat(s.getRegiao()).isEqualTo("RS");
     }
 
     @Test
-    void enviarColocaEmAnalise() {
-        submissao.enviar(consentimento);
-
-        assertThat(submissao.getStatus()).isEqualTo(StatusSubmissao.EM_ANALISE);
-        assertThat(submissao.getDataEnvio()).isNotNull();
-    }
-
-    @Test
-    void naoEnviaComConsentimentoRevogado() {
-        consentimento.revogar();
-
-        assertThatThrownBy(() -> submissao.enviar(consentimento))
+    void exigeAceiteDoTermo() {
+        assertThatThrownBy(() -> new Submissao(dados, video, false, false, null))
                 .isInstanceOf(RegraDeNegocioException.class)
-                .hasMessageContaining("Consentimento inválido");
+                .hasMessageContaining("aceitar o termo");
     }
 
     @Test
-    void aprovarRegistraCuradorEEvento() {
-        submissao.enviar(consentimento);
-
-        submissao.aprovar(curador);
-
-        assertThat(submissao.getStatus()).isEqualTo(StatusSubmissao.APROVADA);
-        assertThat(submissao.getCuradorId()).isEqualTo(curador.getId());
-        assertThat(eventos()).singleElement().isInstanceOf(SubmissaoAprovada.class);
-    }
-
-    @Test
-    void curadorNaoAprovaAPropriaSubmissao() {
-        Usuario curadorAutor = comId(new Usuario("Bia", "bia@exemplo.com", Perfil.CURADOR));
-        Submissao propria = comId(new Submissao(curadorAutor, consentimento, UUID.randomUUID()));
-        propria.enviar(consentimento);
-
-        assertThatThrownBy(() -> propria.aprovar(curadorAutor))
+    void menorDeIdadeExigeTermoDoResponsavel() {
+        assertThatThrownBy(() -> new Submissao(dados, video, true, true, null))
                 .isInstanceOf(RegraDeNegocioException.class)
-                .hasMessageContaining("própria submissão");
+                .hasMessageContaining("responsável legal");
+
+        assertThat(new Submissao(dados, video, true, true, "termos/t.pdf").isSinalizanteMenor()).isTrue();
     }
 
     @Test
-    void colaboradorNaoPodeAvaliar() {
-        Usuario outro = comId(new Usuario("Davi", "davi@exemplo.com", Perfil.COLABORADOR));
-        submissao.enviar(consentimento);
-
-        assertThatThrownBy(() -> submissao.aprovar(outro)).isInstanceOf(RegraDeNegocioException.class);
+    void videoValidoNaoTemMotivo() {
+        assertThat(Submissao.motivoVideoInvalido("webm", 30, 50)).isEmpty();
     }
 
     @Test
-    void rejeitarExigeJustificativa() {
-        submissao.enviar(consentimento);
-
-        assertThatThrownBy(() -> submissao.rejeitar(curador, " ")).isInstanceOf(RegraDeNegocioException.class);
-
-        submissao.rejeitar(curador, "Vídeo fora de enquadramento");
-        assertThat(submissao.getStatus()).isEqualTo(StatusSubmissao.REJEITADA);
-        assertThat(submissao.getJustificativa()).isEqualTo("Vídeo fora de enquadramento");
+    void recusaFormatoDuracaoETamanhoComMensagemDeComoCorrigir() {
+        assertThat(Submissao.motivoVideoInvalido("avi", 10, 5)).hasValue("Formato \"avi\" não aceito; envie MP4 ou WebM");
+        assertThat(Submissao.motivoVideoInvalido("mp4", 45, 5)).hasValue("O vídeo tem 45 s; o limite é 30 s");
+        assertThat(Submissao.motivoVideoInvalido("mp4", 10, 51.5)).get().asString().contains("o limite é 50 MB");
+        assertThat(Submissao.motivoVideoInvalido("mp4", 0, 5)).isPresent();
     }
 
     @Test
-    void ajusteSolicitadoPodeSerReenviado() {
-        submissao.enviar(consentimento);
-        submissao.solicitarAjuste(curador, "Grave com fundo neutro");
+    void naoCriaComVideoInvalido() {
+        VideoDoSinal longo = new VideoDoSinal("videos/x.mp4", "mp4", 45, 4);
 
-        submissao.enviar(consentimento);
-
-        assertThat(submissao.getStatus()).isEqualTo(StatusSubmissao.EM_ANALISE);
-        assertThat(submissao.getJustificativa()).isNull();
-    }
-
-    @Test
-    void naoAvaliaSubmissaoJaAprovada() {
-        submissao.enviar(consentimento);
-        submissao.aprovar(curador);
-
-        assertThatThrownBy(() -> submissao.rejeitar(curador, "motivo"))
+        assertThatThrownBy(() -> new Submissao(dados, longo, true, false, null))
                 .isInstanceOf(RegraDeNegocioException.class)
-                .hasMessageContaining("não está em análise");
-    }
-
-    @SuppressWarnings("unchecked")
-    private java.util.Collection<Object> eventos() {
-        return (java.util.Collection<Object>) ReflectionTestUtils.invokeMethod(submissao, "domainEvents");
-    }
-
-    private static <T> T comId(T entidade) {
-        ReflectionTestUtils.setField(entidade, "id", UUID.randomUUID());
-        return entidade;
+                .hasMessage("O vídeo tem 45 s; o limite é 30 s");
     }
 
     @Test
-    void alterarAposAjusteVoltaParaAFila() {
-        submissao.enviar(consentimento);
-        submissao.solicitarAjuste(curador, "Enquadre melhor as mãos");
+    void alterarTrocaOsCampos() {
+        Submissao s = new Submissao(dados, video, true, false, null);
 
-        submissao.registrarAlteracao(autor, consentimento);
+        s.alterarDados(new DadosDoSinal("Pai", "Genitor; pai", "Meu pai", null, "Família", null, "CM02"));
 
-        assertThat(submissao.getStatus()).isEqualTo(StatusSubmissao.EM_ANALISE);
-        assertThat(submissao.getJustificativa()).isNull();
-    }
-
-    @Test
-    void apenasOAutorAltera() {
-        submissao.enviar(consentimento);
-
-        assertThatThrownBy(() -> submissao.registrarAlteracao(curador, consentimento))
-                .isInstanceOf(RegraDeNegocioException.class)
-                .hasMessageContaining("Apenas o autor");
-    }
-
-    @Test
-    void naoAlteraSubmissaoRejeitada() {
-        submissao.enviar(consentimento);
-        submissao.rejeitar(curador, "Sinal incorreto");
-
-        assertThatThrownBy(() -> submissao.registrarAlteracao(autor, consentimento))
-                .isInstanceOf(RegraDeNegocioException.class);
-    }
-
-    @Test
-    void naoExcluiSubmissaoAprovada() {
-        submissao.enviar(consentimento);
-        submissao.aprovar(curador);
-
-        assertThatThrownBy(() -> submissao.verificarExclusaoPor(autor))
-                .isInstanceOf(RegraDeNegocioException.class)
-                .hasMessageContaining("já foi aprovada");
-    }
-
-    @Test
-    void autorExcluiSubmissaoEmAnalise() {
-        submissao.enviar(consentimento);
-
-        submissao.verificarExclusaoPor(autor);
+        assertThat(s.getAcepcao()).isEqualTo("Genitor; pai");
+        assertThat(s.getRegiao()).isNull();
+        assertThat(s.getConfiguracaoMao()).isEqualTo("CM02");
     }
 }
