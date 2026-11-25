@@ -1,4 +1,4 @@
-package br.udesc.dicionariolibras.submissoes.infra;
+package br.udesc.dicionariolibras.midia.infra;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 

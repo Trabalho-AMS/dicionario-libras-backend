@@ -29,7 +29,7 @@ import org.springframework.test.web.servlet.request.MockMultipartHttpServletRequ
 import com.jayway.jsonpath.JsonPath;
 
 import br.udesc.dicionariolibras.TestcontainersConfig;
-import br.udesc.dicionariolibras.submissoes.infra.ArmazenamentoDeArquivos;
+import br.udesc.dicionariolibras.midia.infra.ArmazenamentoDeArquivos;
 
 /** CRUD das submissões pela API, com o PostgreSQL do Testcontainers e o bucket em memória. */
 @SpringBootTest

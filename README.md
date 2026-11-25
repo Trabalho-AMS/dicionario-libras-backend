@@ -87,17 +87,19 @@ Monólito modular, conforme a [proposta de arquitetura](https://github.com/Traba
 Cada módulo fica em `src/main/java/br/udesc/dicionariolibras/<modulo>`, com as camadas `http` (rotas),
 `aplicacao` (casos de uso), `dominio` (regras) e `infra` (banco e arquivos).
 
-Neste protótipo há só o módulo `submissoes`, que faz o CRUD das submissões com upload do vídeo, e o pacote
-`compartilhado`, com a configuração comum (CORS, Swagger e tratamento de erros). Os outros módulos da
-proposta (`identidade`, `dicionario`, `midia`, `privacidade`, `notificacoes` e `auditoria`) entram quando
-forem implementados.
+O protótipo implementa só o CRUD de submissões, então só existem os módulos e as classes que ele usa:
 
-| Camada | Classes | O que faz |
-|---|---|---|
-| `http` | `SubmissaoController`, `FormularioSubmissao` | Rotas do CRUD; recebe o formulário multipart |
-| `aplicacao` | `SubmissaoService` | Casos de uso: criar, listar, detalhar, alterar e excluir |
-| `dominio` | `Submissao`, `Sinal`, `Verbete`, `Video`, `Consentimento`, `Regiao`, `ConfiguracaoMao`, `Assunto`, `StatusSubmissao` | As classes do [diagrama de classes](https://github.com/Trabalho-AMS/dicionario-libras/blob/main/docs/03-modelagem/README.md) que o CRUD usa, com os mesmos atributos |
-| `infra` | `SubmissaoRepository`, `VerbeteRepository`, `RegiaoRepository`, `AssuntoRepository`, `ConfiguracaoMaoRepository`, `S3ArmazenamentoDeArquivos` | Repositories (PostgreSQL com JPA) e o bucket S3 dos vídeos |
+| Módulo | `http` | `aplicacao` | `dominio` | `infra` |
+|---|---|---|---|---|
+| `submissoes` | `SubmissaoController` | `SubmissaoService` | `Submissao`, `StatusSubmissao` | `SubmissaoRepository` |
+| `dicionario` | — | — | `Verbete`, `Sinal`, `Regiao`, `ConfiguracaoMao`, `Assunto` | `VerbeteRepository`, `RegiaoRepository`, `AssuntoRepository`, `ConfiguracaoMaoRepository` |
+| `midia` | — | — | `Video` | `S3ArmazenamentoDeArquivos` (bucket S3) |
+| `privacidade` | — | — | `Consentimento` | — |
+| `compartilhado` | tratamento de erros | — | exceções de negócio | — |
+
+As classes de `dominio` são as do [diagrama de classes](https://github.com/Trabalho-AMS/dicionario-libras/blob/main/docs/03-modelagem/README.md),
+com os mesmos atributos. O `SubmissaoService` coordena o CRUD usando as classes e os repositories dos outros módulos.
+`identidade`, `notificacoes` e `auditoria` entram quando houver login, e-mails e registro de ações.
 
 Fluxo: `http → aplicacao → infra`, e `aplicacao` e `infra` usam as classes do `dominio`, que não depende de
 ninguém. O teste `CamadasTest` falha se algum import quebrar essa regra. O diagrama está na

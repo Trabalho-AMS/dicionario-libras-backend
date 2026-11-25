@@ -3,12 +3,12 @@ package br.udesc.dicionariolibras.submissoes.aplicacao;
 import java.time.Instant;
 import java.util.UUID;
 
-import br.udesc.dicionariolibras.submissoes.dominio.Consentimento;
-import br.udesc.dicionariolibras.submissoes.dominio.Sinal;
+import br.udesc.dicionariolibras.privacidade.dominio.Consentimento;
+import br.udesc.dicionariolibras.dicionario.dominio.Sinal;
 import br.udesc.dicionariolibras.submissoes.dominio.StatusSubmissao;
 import br.udesc.dicionariolibras.submissoes.dominio.Submissao;
-import br.udesc.dicionariolibras.submissoes.dominio.Verbete;
-import br.udesc.dicionariolibras.submissoes.dominio.Video;
+import br.udesc.dicionariolibras.dicionario.dominio.Verbete;
+import br.udesc.dicionariolibras.midia.dominio.Video;
 
 /** Submissão como o frontend recebe: dados da submissão, do verbete, do sinal, do vídeo e do consentimento. */
 public record SubmissaoResposta(UUID id, Instant dataEnvio, StatusSubmissao status, String palavra, String acepcao,

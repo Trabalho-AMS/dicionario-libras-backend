@@ -12,20 +12,20 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 
 import br.udesc.dicionariolibras.compartilhado.dominio.NaoEncontradoException;
 import br.udesc.dicionariolibras.compartilhado.dominio.RegraDeNegocioException;
-import br.udesc.dicionariolibras.submissoes.dominio.Assunto;
-import br.udesc.dicionariolibras.submissoes.dominio.ConfiguracaoMao;
-import br.udesc.dicionariolibras.submissoes.dominio.Consentimento;
-import br.udesc.dicionariolibras.submissoes.dominio.Regiao;
-import br.udesc.dicionariolibras.submissoes.dominio.Sinal;
+import br.udesc.dicionariolibras.dicionario.dominio.Assunto;
+import br.udesc.dicionariolibras.dicionario.dominio.ConfiguracaoMao;
+import br.udesc.dicionariolibras.privacidade.dominio.Consentimento;
+import br.udesc.dicionariolibras.dicionario.dominio.Regiao;
+import br.udesc.dicionariolibras.dicionario.dominio.Sinal;
 import br.udesc.dicionariolibras.submissoes.dominio.Submissao;
-import br.udesc.dicionariolibras.submissoes.dominio.Verbete;
-import br.udesc.dicionariolibras.submissoes.dominio.Video;
-import br.udesc.dicionariolibras.submissoes.infra.ArmazenamentoDeArquivos;
-import br.udesc.dicionariolibras.submissoes.infra.AssuntoRepository;
-import br.udesc.dicionariolibras.submissoes.infra.ConfiguracaoMaoRepository;
-import br.udesc.dicionariolibras.submissoes.infra.RegiaoRepository;
+import br.udesc.dicionariolibras.dicionario.dominio.Verbete;
+import br.udesc.dicionariolibras.midia.dominio.Video;
+import br.udesc.dicionariolibras.midia.infra.ArmazenamentoDeArquivos;
+import br.udesc.dicionariolibras.dicionario.infra.AssuntoRepository;
+import br.udesc.dicionariolibras.dicionario.infra.ConfiguracaoMaoRepository;
+import br.udesc.dicionariolibras.dicionario.infra.RegiaoRepository;
 import br.udesc.dicionariolibras.submissoes.infra.SubmissaoRepository;
-import br.udesc.dicionariolibras.submissoes.infra.VerbeteRepository;
+import br.udesc.dicionariolibras.dicionario.infra.VerbeteRepository;
 import lombok.RequiredArgsConstructor;
 
 /** CRUD das submissões de sinais com vídeo (UC01, passos 1 a 4). */

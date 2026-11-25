@@ -1,4 +1,4 @@
-package br.udesc.dicionariolibras.submissoes.dominio;
+package br.udesc.dicionariolibras.dicionario.dominio;
 
 import java.util.ArrayList;
 import java.util.List;

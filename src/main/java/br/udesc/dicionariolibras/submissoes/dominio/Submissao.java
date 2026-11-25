@@ -18,6 +18,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import br.udesc.dicionariolibras.compartilhado.dominio.RegraDeNegocioException;
+import br.udesc.dicionariolibras.dicionario.dominio.Sinal;
+import br.udesc.dicionariolibras.privacidade.dominio.Consentimento;
 
 /** Contribuição de um colaborador: liga o consentimento ao sinal proposto. */
 @Entity

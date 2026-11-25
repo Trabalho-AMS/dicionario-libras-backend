@@ -1,4 +1,4 @@
-package br.udesc.dicionariolibras.submissoes.dominio;
+package br.udesc.dicionariolibras.midia.dominio;
 
 import java.util.Optional;
 import java.util.Set;

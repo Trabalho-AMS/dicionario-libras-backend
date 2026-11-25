@@ -1,4 +1,4 @@
-package br.udesc.dicionariolibras.submissoes.dominio;
+package br.udesc.dicionariolibras.privacidade.dominio;
 
 import java.time.Instant;
 import java.util.UUID;

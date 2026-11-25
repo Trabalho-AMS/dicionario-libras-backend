@@ -1,4 +1,4 @@
-package br.udesc.dicionariolibras.submissoes.dominio;
+package br.udesc.dicionariolibras.dicionario.dominio;
 
 import java.util.UUID;
 
@@ -15,6 +15,8 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+
+import br.udesc.dicionariolibras.midia.dominio.Video;
 
 /** Sinal de um verbete. Sem região, é o padrão nacional; com região, é uma variação. */
 @Entity
