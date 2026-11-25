@@ -29,7 +29,7 @@ import org.springframework.test.web.servlet.request.MockMultipartHttpServletRequ
 import com.jayway.jsonpath.JsonPath;
 
 import br.udesc.dicionariolibras.TestcontainersConfig;
-import br.udesc.dicionariolibras.submissoes.dominio.ArmazenamentoDeArquivos;
+import br.udesc.dicionariolibras.submissoes.infra.ArmazenamentoDeArquivos;
 
 /** CRUD das submissões pela API, com o PostgreSQL do Testcontainers e o bucket em memória. */
 @SpringBootTest
@@ -53,7 +53,8 @@ class SubmissaoControllerTest {
                 .andExpect(jsonPath("$[?(@.id == '" + id + "')].palavra").value("Escola"));
         mvc.perform(get("/api/submissoes/{id}", id))
                 .andExpect(jsonPath("$.video.url").exists())
-                .andExpect(jsonPath("$.versaoTermo").value("1.0"));
+                .andExpect(jsonPath("$.consentimento.versaoTermo").value("1.0"))
+                .andExpect(jsonPath("$.regiao").value("SC"));
 
         // Alterar sem trocar o vídeo
         mvc.perform(formulario(multipart("/api/submissoes/{id}", id).with(r -> {
@@ -62,14 +63,23 @@ class SubmissaoControllerTest {
         }), "Escola", 12, false))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("EM_ANALISE"))
-                .andExpect(jsonPath("$.acepcao").value("Acepção corrigida"))
-                .andExpect(jsonPath("$.atualizadaEm").exists());
+                .andExpect(jsonPath("$.acepcao").value("Acepção corrigida"));
 
         // Excluir apaga a submissão e o vídeo do bucket
         long videosAntes = bucket.keySet().stream().filter(k -> k.startsWith("videos/")).count();
         mvc.perform(delete("/api/submissoes/{id}", id)).andExpect(status().isNoContent());
         assertThat(bucket.keySet().stream().filter(k -> k.startsWith("videos/")).count()).isEqualTo(videosAntes - 1);
         mvc.perform(get("/api/submissoes/{id}", id)).andExpect(status().isNotFound());
+    }
+
+    @Test
+    void palavraExistenteViraVariacaoDoMesmoVerbete() throws Exception {
+        String primeira = criar("Mãe", 5);
+        String segunda = criar("mãe", 6);
+
+        mvc.perform(get("/api/submissoes/{id}", segunda)).andExpect(jsonPath("$.palavra").value("Mãe"));
+        mvc.perform(delete("/api/submissoes/{id}", primeira)).andExpect(status().isNoContent());
+        mvc.perform(get("/api/submissoes/{id}", segunda)).andExpect(status().isOk());
     }
 
     @Test

@@ -1,4 +1,4 @@
-package br.udesc.dicionariolibras.submissoes.dominio;
+package br.udesc.dicionariolibras.submissoes.infra;
 
 import java.net.URL;
 import java.time.Duration;

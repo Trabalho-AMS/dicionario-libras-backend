@@ -16,7 +16,7 @@ trabalho final de AMS0002 (UDESC). Frontend: [dicionario-libras-frontend](https:
 |---|---|
 | [Lombok](https://projectlombok.org/) | Gera getters, setters, construtores e builders (`@Getter`, `@RequiredArgsConstructor`, `@Builder`...) |
 | [MapStruct](https://mapstruct.org/) | Converte entidades em DTOs e vice-versa. Os mappers (`@Mapper`) viram beans do Spring automaticamente |
-| [Flyway](https://documentation.red-gate.com/fd) | Migrações do banco em `src/main/resources/db/migration` (`V1__esquema_inicial.sql`) |
+| [Flyway](https://documentation.red-gate.com/fd) | Migrações do banco em `src/main/resources/db/migration` (`V1__esquema_inicial.sql`, `V2__dados_de_apoio.sql`) |
 | [springdoc-openapi](https://springdoc.org/) | Documentação da API e Swagger UI em `http://localhost:8080/swagger-ui.html` |
 | Bean Validation | Validação dos DTOs de entrada (`@NotBlank`, `@Size`, `@Valid`...) |
 | Spring Boot Test (JUnit 5, Mockito, AssertJ) | Testes |
@@ -35,7 +35,7 @@ docker compose up -d        # sobe o PostgreSQL (porta 5433) e o bucket S3 (port
 
 - Status: `GET http://localhost:8080/api/status`
 - Swagger: `http://localhost:8080/swagger-ui.html`
-- Na primeira execução o Flyway cria a tabela e a aplicação cria o bucket `dicionario-libras`.
+- Na primeira execução o Flyway cria as tabelas e os dados de apoio, e a aplicação cria o bucket `dicionario-libras`.
 
 | Serviço | Endereço | Credenciais |
 |---|---|---|
@@ -74,7 +74,7 @@ Documentação interativa no Swagger: `http://localhost:8080/swagger-ui.html`.
 | `PUT` | `/api/submissoes/{id}` | Altera a submissão (vídeo opcional: sem ele, o atual é mantido) |
 | `DELETE` | `/api/submissoes/{id}` | Exclui a submissão e apaga o vídeo e o termo do bucket (LGPD) |
 
-Campos do formulário: `palavra`, `acepcao`, `exemplo`, `classeGramatical`, `assunto`, `regiao` (UF; vazio é o
+Campos do formulário: `palavra`, `acepcao`, `exemplo`, `exemploLibras`, `classeGramatical`, `origem`, `assunto`, `regiao` (UF; vazio é o
 sinal nacional), `configuracaoMao`, `video`, `duracaoSeg`, `aceiteTermo`, `sinalizanteMenor` e `termoResponsavel`.
 
 Erros voltam como `{"status": 422, "mensagem": "O vídeo tem 45 s; o limite é 30 s"}`, com uma mensagem que diz
@@ -92,21 +92,22 @@ Neste protótipo há só o módulo `submissoes`, que faz o CRUD das submissões 
 proposta (`identidade`, `dicionario`, `midia`, `privacidade`, `notificacoes` e `auditoria`) entram quando
 forem implementados.
 
-| Arquivo | Camada | O que faz |
+| Camada | Classes | O que faz |
 |---|---|---|
-| `SubmissaoController` | `http` | Rotas do CRUD; recebe o formulário multipart (`FormularioSubmissao`) |
-| `SubmissaoService` | `aplicacao` | Casos de uso: criar, listar, detalhar, alterar e excluir |
-| `Submissao` | `dominio` | Entidade; valida o vídeo (MP4/WebM, até 30 s e 50 MB) e o consentimento (aceite do termo e, se menor de 18 anos, termo do responsável) |
-| `SubmissaoRepository`, `ArmazenamentoDeArquivos` | `dominio` | Interfaces do que o domínio precisa de fora: banco e arquivos |
-| `SubmissaoRepositoryJpa` | `infra` | Implementa o `SubmissaoRepository` com JPA e PostgreSQL |
-| `S3ArmazenamentoDeArquivos` | `infra` | Guarda os arquivos no bucket S3 e gera os links temporários |
+| `http` | `SubmissaoController`, `FormularioSubmissao` | Rotas do CRUD; recebe o formulário multipart |
+| `aplicacao` | `SubmissaoService` | Casos de uso: criar, listar, detalhar, alterar e excluir |
+| `dominio` | `Submissao`, `Sinal`, `Verbete`, `Video`, `Consentimento`, `Regiao`, `ConfiguracaoMao`, `Assunto`, `StatusSubmissao` | As classes do [diagrama de classes](https://github.com/Trabalho-AMS/dicionario-libras/blob/main/docs/03-modelagem/README.md) que o CRUD usa, com os mesmos atributos |
+| `infra` | `SubmissaoRepository`, `VerbeteRepository`, `RegiaoRepository`, `AssuntoRepository`, `ConfiguracaoMaoRepository`, `S3ArmazenamentoDeArquivos` | Repositories (PostgreSQL com JPA) e o bucket S3 dos vídeos |
 
-O fluxo segue as camadas: `SubmissaoController` → `SubmissaoService` → `SubmissaoRepository` (interface no
-domínio) → `SubmissaoRepositoryJpa` (infra). Assim a aplicação não depende do banco, só da interface. Cada camada só fala com a vizinha
-(`http → aplicacao → dominio ← infra`), e o teste `CamadasTest` falha se algum import pular uma camada.
-O diagrama está na [proposta de arquitetura](https://github.com/Trabalho-AMS/dicionario-libras/blob/main/docs/04-arquitetura.md#camadas-de-cada-módulo).
+Fluxo: `http → aplicacao → infra`, e `aplicacao` e `infra` usam as classes do `dominio`, que não depende de
+ninguém. O teste `CamadasTest` falha se algum import quebrar essa regra. O diagrama está na
+[proposta de arquitetura](https://github.com/Trabalho-AMS/dicionario-libras/blob/main/docs/04-arquitetura.md#camadas-de-cada-módulo).
 
-O banco tem uma tabela, `submissao`, criada pela migração `V1` do Flyway. Os arquivos ficam no bucket: a
-tabela guarda só a chave de cada um.
+Métodos do diagrama usados pelo CRUD: `Submissao.enviar()`, `Consentimento.ehValido()`, `Video.validar()` e
+`Verbete.adicionarSinal()`. O diagrama descreve o sistema completo; usuários, perfis e curadoria (aprovar,
+pedir ajuste, rejeitar) ficam para as próximas etapas.
+
+O banco é criado pelas migrações do Flyway: `V1` (tabelas) e `V2` (27 UFs, assuntos e configurações de mão).
+Os arquivos ficam no bucket: a tabela `video` guarda só a chave de cada um.
 
 > Se você já tinha rodado uma versão anterior, apague o banco antigo uma vez: `docker compose down -v`.

@@ -7,8 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 import br.udesc.dicionariolibras.submissoes.dominio.Submissao;
 
-/** Consultas geradas pelo Spring Data JPA. Usada só pelo {@link SubmissaoRepositoryJpa}. */
-interface SubmissaoJpaRepository extends JpaRepository<Submissao, UUID> {
+public interface SubmissaoRepository extends JpaRepository<Submissao, UUID> {
 
     List<Submissao> findAllByOrderByDataEnvioDesc();
 }

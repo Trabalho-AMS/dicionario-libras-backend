@@ -16,10 +16,12 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 
 /**
- * Garante a regra das camadas de cada módulo: cada pasta só fala com a vizinha.
+ * Garante a regra das camadas de cada módulo.
  *
  * <pre>
- * http → aplicacao → dominio ← infra
+ * http → aplicacao → dominio
+ *            ↓          ↑
+ *          infra ───────┘
  * </pre>
  */
 class CamadasTest {
@@ -31,12 +33,12 @@ class CamadasTest {
     /** Camadas que cada camada pode importar (de qualquer módulo), além dela mesma. */
     private static final Map<String, Set<String>> PERMITIDAS = Map.of(
             "http", Set.of("aplicacao"),
-            "aplicacao", Set.of("dominio"),
+            "aplicacao", Set.of("dominio", "infra"),
             "dominio", Set.of(),
             "infra", Set.of("dominio"));
 
     @Test
-    void cadaPastaSoFalaComAVizinha() throws IOException {
+    void camadasSoUsamAsPermitidas() throws IOException {
         List<String> violacoes = new ArrayList<>();
         try (Stream<Path> arquivos = Files.walk(MODULOS)) {
             for (Path arquivo : arquivos.filter(p -> p.toString().endsWith(".java")).toList()) {

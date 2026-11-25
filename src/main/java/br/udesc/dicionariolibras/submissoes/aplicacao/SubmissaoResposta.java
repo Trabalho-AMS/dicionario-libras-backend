@@ -3,23 +3,33 @@ package br.udesc.dicionariolibras.submissoes.aplicacao;
 import java.time.Instant;
 import java.util.UUID;
 
+import br.udesc.dicionariolibras.submissoes.dominio.Consentimento;
+import br.udesc.dicionariolibras.submissoes.dominio.Sinal;
 import br.udesc.dicionariolibras.submissoes.dominio.StatusSubmissao;
 import br.udesc.dicionariolibras.submissoes.dominio.Submissao;
+import br.udesc.dicionariolibras.submissoes.dominio.Verbete;
+import br.udesc.dicionariolibras.submissoes.dominio.Video;
 
-/** Submissão como o frontend recebe, com um link temporário para o vídeo. */
-public record SubmissaoResposta(UUID id, String palavra, String acepcao, String exemplo, String classeGramatical,
-        String assunto, String regiao, String configuracaoMao, Video video, boolean sinalizanteMenor,
-        String versaoTermo, Instant consentimentoEm, StatusSubmissao status, Instant dataEnvio,
-        Instant atualizadaEm) {
+/** Submissão como o frontend recebe: dados da submissão, do verbete, do sinal, do vídeo e do consentimento. */
+public record SubmissaoResposta(UUID id, Instant dataEnvio, StatusSubmissao status, String palavra, String acepcao,
+        String exemplo, String exemploLibras, String classeGramatical, String origem, String assunto, String regiao,
+        String configuracaoMao, VideoResposta video, ConsentimentoResposta consentimento) {
 
-    public record Video(String url, String formato, int duracaoSeg, double tamanhoMB) {
+    public record VideoResposta(String url, String formato, int duracaoSeg, double tamanhoMB) {
+    }
+
+    public record ConsentimentoResposta(String versaoTermo, Instant dataHora, boolean sinalizanteMenor) {
     }
 
     static SubmissaoResposta de(Submissao s, String urlVideo) {
-        return new SubmissaoResposta(s.getId(), s.getPalavra(), s.getAcepcao(), s.getExemplo(),
-                s.getClasseGramatical(), s.getAssunto(), s.getRegiao(), s.getConfiguracaoMao(),
-                new Video(urlVideo, s.getVideoFormato(), s.getVideoDuracaoSeg(), s.getVideoTamanhoMB()),
-                s.isSinalizanteMenor(), s.getVersaoTermo(), s.getConsentimentoEm(), s.getStatus(), s.getDataEnvio(),
-                s.getAtualizadaEm());
+        Sinal sinal = s.getSinal();
+        Verbete v = sinal.getVerbete();
+        Video video = sinal.getVideo();
+        Consentimento c = s.getConsentimento();
+        return new SubmissaoResposta(s.getId(), s.getDataEnvio(), s.getStatus(), v.getPalavra(), v.getAcepcao(),
+                v.getExemplo(), v.getExemploLibras(), v.getClasseGramatical(), v.getOrigem(), v.getAssunto().getNome(),
+                sinal.getRegiao() == null ? null : sinal.getRegiao().getUf(), sinal.getConfiguracaoMao().getCodigo(),
+                new VideoResposta(urlVideo, video.getFormato(), video.getDuracaoSeg(), video.getTamanhoMB()),
+                new ConsentimentoResposta(c.getVersaoTermo(), c.getDataHora(), c.isSinalizanteMenor()));
     }
 }

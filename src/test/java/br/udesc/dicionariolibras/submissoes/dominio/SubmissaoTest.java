@@ -6,70 +6,64 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import org.junit.jupiter.api.Test;
 
 import br.udesc.dicionariolibras.compartilhado.dominio.RegraDeNegocioException;
-import br.udesc.dicionariolibras.submissoes.dominio.Submissao.DadosDoSinal;
-import br.udesc.dicionariolibras.submissoes.dominio.Submissao.VideoDoSinal;
 
 class SubmissaoTest {
 
-    private final DadosDoSinal dados = new DadosDoSinal("Pai", "Genitor", null, "Substantivo", "Família", "RS", "CM01");
-    private final VideoDoSinal video = new VideoDoSinal("videos/pai.mp4", "mp4", 8, 4.2);
+    private final Video video = new Video("videos/pai.mp4", "mp4", 8, 4.2);
+    private final Sinal sinal = new Sinal(null, null, video);
 
     @Test
-    void criaEmAnaliseComConsentimentoRegistrado() {
-        Submissao s = new Submissao(dados, video, true, false, null);
+    void enviarColocaEmAnalise() {
+        Submissao s = new Submissao(new Consentimento("1.0", false, null), sinal);
+
+        s.enviar();
 
         assertThat(s.getStatus()).isEqualTo(StatusSubmissao.EM_ANALISE);
-        assertThat(s.getVersaoTermo()).isEqualTo(Submissao.VERSAO_TERMO);
-        assertThat(s.getConsentimentoEm()).isNotNull();
-        assertThat(s.getRegiao()).isEqualTo("RS");
+        assertThat(s.getDataEnvio()).isNotNull();
     }
 
     @Test
-    void exigeAceiteDoTermo() {
-        assertThatThrownBy(() -> new Submissao(dados, video, false, false, null))
-                .isInstanceOf(RegraDeNegocioException.class)
-                .hasMessageContaining("aceitar o termo");
-    }
+    void naoEnviaSemTermoDoResponsavelParaMenor() {
+        Submissao s = new Submissao(new Consentimento("1.0", true, null), sinal);
 
-    @Test
-    void menorDeIdadeExigeTermoDoResponsavel() {
-        assertThatThrownBy(() -> new Submissao(dados, video, true, true, null))
+        assertThatThrownBy(s::enviar)
                 .isInstanceOf(RegraDeNegocioException.class)
                 .hasMessageContaining("responsável legal");
-
-        assertThat(new Submissao(dados, video, true, true, "termos/t.pdf").isSinalizanteMenor()).isTrue();
     }
 
     @Test
-    void videoValidoNaoTemMotivo() {
-        assertThat(Submissao.motivoVideoInvalido("webm", 30, 50)).isEmpty();
+    void consentimentoDeMenorComTermoEhValido() {
+        assertThat(new Consentimento("1.0", true, "termos/t.pdf").ehValido()).isTrue();
+        assertThat(new Consentimento("1.0", false, null).ehValido()).isTrue();
+        assertThat(new Consentimento(" ", false, null).ehValido()).isFalse();
     }
 
     @Test
-    void recusaFormatoDuracaoETamanhoComMensagemDeComoCorrigir() {
-        assertThat(Submissao.motivoVideoInvalido("avi", 10, 5)).hasValue("Formato \"avi\" não aceito; envie MP4 ou WebM");
-        assertThat(Submissao.motivoVideoInvalido("mp4", 45, 5)).hasValue("O vídeo tem 45 s; o limite é 30 s");
-        assertThat(Submissao.motivoVideoInvalido("mp4", 10, 51.5)).get().asString().contains("o limite é 50 MB");
-        assertThat(Submissao.motivoVideoInvalido("mp4", 0, 5)).isPresent();
+    void videoValido() {
+        assertThat(new Video("v.webm", "webm", 30, 50).validar()).isTrue();
     }
 
     @Test
-    void naoCriaComVideoInvalido() {
-        VideoDoSinal longo = new VideoDoSinal("videos/x.mp4", "mp4", 45, 4);
-
-        assertThatThrownBy(() -> new Submissao(dados, longo, true, false, null))
-                .isInstanceOf(RegraDeNegocioException.class)
-                .hasMessage("O vídeo tem 45 s; o limite é 30 s");
+    void videoInvalidoExplicaComoCorrigir() {
+        assertThat(new Video("v.avi", "avi", 10, 5).motivoInvalido()).hasValue("Formato \"avi\" não aceito; envie MP4 ou WebM");
+        assertThat(new Video("v.mp4", "mp4", 45, 5).motivoInvalido()).hasValue("O vídeo tem 45 s; o limite é 30 s");
+        assertThat(new Video("v.mp4", "mp4", 10, 51.5).motivoInvalido()).get().asString().contains("o limite é 50 MB");
+        assertThat(new Video("v.mp4", "mp4", 0, 5).validar()).isFalse();
     }
 
     @Test
-    void alterarTrocaOsCampos() {
-        Submissao s = new Submissao(dados, video, true, false, null);
+    void sinalSemRegiaoEhOPadraoNacional() {
+        assertThat(sinal.isPadrao()).isTrue();
+        assertThat(sinal.isPublicado()).isFalse();
+    }
 
-        s.alterarDados(new DadosDoSinal("Pai", "Genitor; pai", "Meu pai", null, "Família", null, "CM02"));
+    @Test
+    void adicionarSinalLigaOSinalAoVerbete() {
+        Verbete verbete = new Verbete("Pai", "Genitor", null);
 
-        assertThat(s.getAcepcao()).isEqualTo("Genitor; pai");
-        assertThat(s.getRegiao()).isNull();
-        assertThat(s.getConfiguracaoMao()).isEqualTo("CM02");
+        verbete.adicionarSinal(sinal);
+
+        assertThat(verbete.getSinais()).containsExactly(sinal);
+        assertThat(sinal.getVerbete()).isSameAs(verbete);
     }
 }
