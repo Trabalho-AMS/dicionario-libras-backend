@@ -14,7 +14,7 @@ import br.udesc.dicionariolibras.compartilhado.dominio.NaoEncontradoException;
 import br.udesc.dicionariolibras.compartilhado.dominio.RegraDeNegocioException;
 import br.udesc.dicionariolibras.submissoes.dominio.Submissao;
 import br.udesc.dicionariolibras.submissoes.dominio.Submissao.VideoDoSinal;
-import br.udesc.dicionariolibras.submissoes.infra.SubmissaoRepository;
+import br.udesc.dicionariolibras.submissoes.dominio.SubmissaoRepository;
 import lombok.RequiredArgsConstructor;
 
 /** CRUD das submissões de sinais com vídeo. */
@@ -37,12 +37,12 @@ public class SubmissaoService {
                 ? guardar("termos/", nova.termoResponsavel())
                 : null;
         Submissao submissao = new Submissao(nova.dados(), video, nova.aceiteTermo(), nova.sinalizanteMenor(), termo);
-        return resposta(submissoes.save(submissao));
+        return resposta(submissoes.salvar(submissao));
     }
 
     @Transactional(readOnly = true)
     public List<SubmissaoResposta> listar() {
-        return submissoes.findAllByOrderByDataEnvioDesc().stream().map(this::resposta).toList();
+        return submissoes.listarTodas().stream().map(this::resposta).toList();
     }
 
     @Transactional(readOnly = true)
@@ -59,13 +59,13 @@ public class SubmissaoService {
             submissao.trocarVideo(guardarVideo(nova.video(), nova.duracaoSeg()));
             depoisDeConfirmar(() -> armazenamento.remover(videoAntigo));
         }
-        return resposta(submissao);
+        return resposta(submissoes.salvar(submissao));
     }
 
     /** Exclui a submissão e apaga o vídeo e o termo do bucket (LGPD). */
     public void excluir(UUID id) {
         Submissao submissao = buscar(id);
-        submissoes.delete(submissao);
+        submissoes.excluir(submissao);
         depoisDeConfirmar(() -> {
             armazenamento.remover(submissao.getVideoChave());
             if (submissao.getTermoResponsavel() != null) {
@@ -75,7 +75,7 @@ public class SubmissaoService {
     }
 
     private Submissao buscar(UUID id) {
-        return submissoes.findById(id).orElseThrow(() -> new NaoEncontradoException("Submissão não encontrada"));
+        return submissoes.buscarPorId(id).orElseThrow(() -> new NaoEncontradoException("Submissão não encontrada"));
     }
 
     /** Valida o vídeo (RF04) antes de mandar para o bucket. A duração é lida pelo navegador. */

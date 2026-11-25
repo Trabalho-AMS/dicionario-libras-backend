@@ -97,8 +97,12 @@ forem implementados.
 | `SubmissaoController` | `http` | Rotas do CRUD; recebe o formulário multipart (`FormularioSubmissao`) |
 | `SubmissaoService` | `aplicacao` | Casos de uso: criar, listar, detalhar, alterar e excluir |
 | `Submissao` | `dominio` | Entidade; valida o vídeo (MP4/WebM, até 30 s e 50 MB) e o consentimento (aceite do termo e, se menor de 18 anos, termo do responsável) |
-| `SubmissaoRepository` | `infra` | Acesso ao PostgreSQL |
+| `SubmissaoRepository` | `dominio` | Interface do repositório: o que o service pode pedir ao banco |
+| `SubmissaoRepositoryJpa` | `infra` | Implementa o `SubmissaoRepository` com JPA e PostgreSQL |
 | `S3ArmazenamentoDeArquivos` | `infra` | Guarda os arquivos no bucket S3 e gera os links temporários |
+
+O fluxo segue as camadas: `SubmissaoController` → `SubmissaoService` → `SubmissaoRepository` (interface no
+domínio) → `SubmissaoRepositoryJpa` (infra). Assim a aplicação não depende do banco, só da interface.
 
 O banco tem uma tabela, `submissao`, criada pela migração `V1` do Flyway. Os arquivos ficam no bucket: a
 tabela guarda só a chave de cada um.
