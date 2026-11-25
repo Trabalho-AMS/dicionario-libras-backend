@@ -87,9 +87,10 @@ Monólito modular, conforme a [proposta de arquitetura](https://github.com/Traba
 Cada módulo fica em `src/main/java/br/udesc/dicionariolibras/<modulo>`, com as camadas `http` (rotas),
 `aplicacao` (casos de uso), `dominio` (regras) e `infra` (banco e arquivos).
 
-Neste protótipo, **só o módulo `submissoes` está implementado**: ele faz o CRUD das submissões com upload do
-vídeo. Os demais módulos (`identidade`, `dicionario`, `midia`, `privacidade`, `notificacoes` e `auditoria`)
-estão criados vazios, para receber as próximas funcionalidades.
+Neste protótipo há só o módulo `submissoes`, que faz o CRUD das submissões com upload do vídeo, e o pacote
+`compartilhado`, com a configuração comum (CORS, Swagger e tratamento de erros). Os outros módulos da
+proposta (`identidade`, `dicionario`, `midia`, `privacidade`, `notificacoes` e `auditoria`) entram quando
+forem implementados.
 
 | Arquivo | Camada | O que faz |
 |---|---|---|
