@@ -7,7 +7,6 @@ import org.springframework.web.multipart.MultipartFile;
 
 import br.udesc.dicionariolibras.submissoes.aplicacao.ArquivoEnviado;
 import br.udesc.dicionariolibras.submissoes.aplicacao.NovaSubmissao;
-import br.udesc.dicionariolibras.submissoes.dominio.Submissao.DadosDoSinal;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
@@ -27,9 +26,8 @@ record FormularioSubmissao(
         MultipartFile termoResponsavel) {
 
     NovaSubmissao paraDados() {
-        DadosDoSinal dados = new DadosDoSinal(palavra, acepcao, vazioParaNulo(exemplo), vazioParaNulo(classeGramatical),
-                assunto, vazioParaNulo(regiao), configuracaoMao);
-        return new NovaSubmissao(dados, arquivo(video), duracaoSeg, Boolean.TRUE.equals(aceiteTermo),
+        return new NovaSubmissao(palavra, acepcao, vazioParaNulo(exemplo), vazioParaNulo(classeGramatical), assunto,
+                vazioParaNulo(regiao), configuracaoMao, arquivo(video), duracaoSeg, Boolean.TRUE.equals(aceiteTermo),
                 Boolean.TRUE.equals(sinalizanteMenor), arquivo(termoResponsavel));
     }
 

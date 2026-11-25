@@ -12,7 +12,9 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 
 import br.udesc.dicionariolibras.compartilhado.dominio.NaoEncontradoException;
 import br.udesc.dicionariolibras.compartilhado.dominio.RegraDeNegocioException;
+import br.udesc.dicionariolibras.submissoes.dominio.ArmazenamentoDeArquivos;
 import br.udesc.dicionariolibras.submissoes.dominio.Submissao;
+import br.udesc.dicionariolibras.submissoes.dominio.Submissao.DadosDoSinal;
 import br.udesc.dicionariolibras.submissoes.dominio.Submissao.VideoDoSinal;
 import br.udesc.dicionariolibras.submissoes.dominio.SubmissaoRepository;
 import lombok.RequiredArgsConstructor;
@@ -36,7 +38,7 @@ public class SubmissaoService {
         String termo = nova.sinalizanteMenor() && nova.termoResponsavel() != null
                 ? guardar("termos/", nova.termoResponsavel())
                 : null;
-        Submissao submissao = new Submissao(nova.dados(), video, nova.aceiteTermo(), nova.sinalizanteMenor(), termo);
+        Submissao submissao = new Submissao(dadosDoSinal(nova), video, nova.aceiteTermo(), nova.sinalizanteMenor(), termo);
         return resposta(submissoes.salvar(submissao));
     }
 
@@ -53,7 +55,7 @@ public class SubmissaoService {
     /** Altera os campos; se vier um novo vídeo, ele substitui o atual, que é apagado do bucket. */
     public SubmissaoResposta alterar(UUID id, NovaSubmissao nova) {
         Submissao submissao = buscar(id);
-        submissao.alterarDados(nova.dados());
+        submissao.alterarDados(dadosDoSinal(nova));
         if (nova.video() != null) {
             String videoAntigo = submissao.getVideoChave();
             submissao.trocarVideo(guardarVideo(nova.video(), nova.duracaoSeg()));
@@ -72,6 +74,11 @@ public class SubmissaoService {
                 armazenamento.remover(submissao.getTermoResponsavel());
             }
         });
+    }
+
+    private static DadosDoSinal dadosDoSinal(NovaSubmissao nova) {
+        return new DadosDoSinal(nova.palavra(), nova.acepcao(), nova.exemplo(), nova.classeGramatical(), nova.assunto(),
+                nova.regiao(), nova.configuracaoMao());
     }
 
     private Submissao buscar(UUID id) {

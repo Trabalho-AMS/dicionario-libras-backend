@@ -9,7 +9,7 @@ import org.springframework.stereotype.Component;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import br.udesc.dicionariolibras.submissoes.aplicacao.ArmazenamentoDeArquivos;
+import br.udesc.dicionariolibras.submissoes.dominio.ArmazenamentoDeArquivos;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.NoSuchBucketException;

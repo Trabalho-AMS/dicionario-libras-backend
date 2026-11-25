@@ -97,12 +97,14 @@ forem implementados.
 | `SubmissaoController` | `http` | Rotas do CRUD; recebe o formulário multipart (`FormularioSubmissao`) |
 | `SubmissaoService` | `aplicacao` | Casos de uso: criar, listar, detalhar, alterar e excluir |
 | `Submissao` | `dominio` | Entidade; valida o vídeo (MP4/WebM, até 30 s e 50 MB) e o consentimento (aceite do termo e, se menor de 18 anos, termo do responsável) |
-| `SubmissaoRepository` | `dominio` | Interface do repositório: o que o service pode pedir ao banco |
+| `SubmissaoRepository`, `ArmazenamentoDeArquivos` | `dominio` | Interfaces do que o domínio precisa de fora: banco e arquivos |
 | `SubmissaoRepositoryJpa` | `infra` | Implementa o `SubmissaoRepository` com JPA e PostgreSQL |
 | `S3ArmazenamentoDeArquivos` | `infra` | Guarda os arquivos no bucket S3 e gera os links temporários |
 
 O fluxo segue as camadas: `SubmissaoController` → `SubmissaoService` → `SubmissaoRepository` (interface no
-domínio) → `SubmissaoRepositoryJpa` (infra). Assim a aplicação não depende do banco, só da interface.
+domínio) → `SubmissaoRepositoryJpa` (infra). Assim a aplicação não depende do banco, só da interface. Cada camada só fala com a vizinha
+(`http → aplicacao → dominio ← infra`), e o teste `CamadasTest` falha se algum import pular uma camada.
+O diagrama está na [proposta de arquitetura](https://github.com/Trabalho-AMS/dicionario-libras/blob/main/docs/04-arquitetura.md#camadas-de-cada-módulo).
 
 O banco tem uma tabela, `submissao`, criada pela migração `V1` do Flyway. Os arquivos ficam no bucket: a
 tabela guarda só a chave de cada um.

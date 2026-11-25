@@ -1,9 +1,12 @@
-package br.udesc.dicionariolibras.submissoes.aplicacao;
+package br.udesc.dicionariolibras.submissoes.dominio;
 
 import java.net.URL;
 import java.time.Duration;
 
-/** Porta para o armazenamento de arquivos (bucket S3). */
+/**
+ * Armazenamento dos arquivos (vídeo e termo do responsável). A aplicação depende só desta interface;
+ * a implementação com o bucket S3 fica em {@code infra}.
+ */
 public interface ArmazenamentoDeArquivos {
 
     void salvar(String chave, byte[] conteudo, String contentType);
